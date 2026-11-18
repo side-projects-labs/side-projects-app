@@ -19,6 +19,7 @@ function AppShell() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ title: 'Side Projects' }} />
+      <Stack.Screen name="notifications" options={{ title: '배포 알림' }} />
       <Stack.Screen name="project/[id]" options={{ title: '' }} />
     </Stack>
   );

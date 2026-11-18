@@ -1,0 +1,117 @@
+name: Notify deployment
+
+# 다른 레포의 배포 워크플로에서 호출하는 재사용 워크플로. 사용법: docs/deployment-notifications.md
+on:
+  workflow_call:
+    inputs:
+      project-id:
+        description: 카탈로그의 프로젝트 id (레포 이름)
+        type: string
+        required: true
+      status:
+        description: started | succeeded | failed
+        type: string
+        required: true
+      detail:
+        description: 알림 본문에 덧붙일 짧은 설명(브랜치·커밋 등)
+        type: string
+        required: false
+        default: ''
+      event-id:
+        description: 이벤트 식별자. 비우면 레포·run·시도·상태로 만든다
+        type: string
+        required: false
+        default: ''
+    secrets:
+      EXPO_PUSH_TOKENS:
+        description: 쉼표로 구분한 ExponentPushToken[...] 목록
+        required: true
+      EXPO_ACCESS_TOKEN:
+        description: Expo 푸시 보안을 켠 경우의 액세스 토큰
+        required: false
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send push
+        env:
+          PROJECT_ID: ${{ inputs.project-id }}
+          STATUS: ${{ inputs.status }}
+          DETAIL: ${{ inputs.detail }}
+          EVENT_ID: ${{ inputs.event-id }}
+          PUSH_TOKENS: ${{ secrets.EXPO_PUSH_TOKENS }}
+          EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          # 배포 이벤트(version=1)를 Expo 푸시 API로 보낸다.
+          # 알림 실패가 배포를 막지 않도록 항상 exit 0 으로 끝내고, 문제는 경고로만 남긴다.
+          # 입력은 환경변수로만 받는다(셸 인젝션 방지): PROJECT_ID, STATUS, EVENT_ID, DETAIL, PUSH_TOKENS, EXPO_ACCESS_TOKEN
+          # DRY_RUN=1 이면 전송 없이 페이로드만 출력한다.
+          set -uo pipefail
+
+          warn() { echo "::warning::$*"; }
+
+          PROJECT_ID="${PROJECT_ID:-}"
+          STATUS="${STATUS:-}"
+          DETAIL="${DETAIL:-}"
+          PUSH_TOKENS="${PUSH_TOKENS:-}"
+          EVENT_ID="${EVENT_ID:-}"
+
+          if [ -z "$PROJECT_ID" ]; then warn "project-id 가 비어 있어 알림을 보내지 않습니다."; exit 0; fi
+          case "$STATUS" in
+            started)   TITLE="🚀 배포 시작" ;;
+            succeeded) TITLE="✅ 배포 완료" ;;
+            failed)    TITLE="❌ 배포 실패" ;;
+            *) warn "알 수 없는 status('$STATUS'). started|succeeded|failed 만 허용합니다."; exit 0 ;;
+          esac
+          if [ -z "$PUSH_TOKENS" ]; then warn "푸시 토큰이 없어 알림을 보내지 않습니다."; exit 0; fi
+          if [ -z "$EVENT_ID" ]; then
+            EVENT_ID="${GITHUB_REPOSITORY:-local}-${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-1}-${STATUS}"
+          fi
+
+          BODY="$PROJECT_ID"
+          if [ -n "$DETAIL" ]; then BODY="$PROJECT_ID · $DETAIL"; fi
+
+          # 토큰은 로그에 노출하지 않는다.
+          if [ -n "${GITHUB_ACTIONS:-}" ]; then
+            IFS=',' read -ra _t <<< "$PUSH_TOKENS"
+            for t in "${_t[@]}"; do t="${t//[[:space:]]/}"; [ -n "$t" ] && echo "::add-mask::$t"; done
+          fi
+
+          PAYLOAD="$(jq -n \
+            --arg tokens "$PUSH_TOKENS" --arg title "$TITLE" --arg body "$BODY" \
+            --arg pid "$PROJECT_ID" --arg st "$STATUS" --arg eid "$EVENT_ID" '
+            ($tokens | split(",") | map(gsub("\\s"; "")) | map(select(startswith("ExponentPushToken[") or startswith("ExpoPushToken[")))) as $t
+            | [ $t[] | { to: ., title: $title, body: $body, channelId: "deployments", priority: "high",
+                         data: { version: 1, eventId: $eid, projectId: $pid, status: $st } } ]')" || { warn "페이로드 생성에 실패했습니다."; exit 0; }
+
+          COUNT="$(jq 'length' <<< "$PAYLOAD")"
+          if [ "$COUNT" -eq 0 ]; then warn "유효한 Expo 푸시 토큰이 없습니다(ExponentPushToken[...] 형식)."; exit 0; fi
+
+          if [ "${DRY_RUN:-}" = "1" ]; then
+            jq '[.[] | .to = "<redacted>"]' <<< "$PAYLOAD"
+            exit 0
+          fi
+
+          AUTH=()
+          if [ -n "${EXPO_ACCESS_TOKEN:-}" ]; then AUTH=(-H "Authorization: Bearer ${EXPO_ACCESS_TOKEN}"); fi
+          RESP="$(mktemp)"
+          HTTP="$(curl -sS -m 20 -o "$RESP" -w '%{http_code}' -X POST "${EXPO_PUSH_URL:-https://exp.host/--/api/v2/push/send}" \
+            -H 'Content-Type: application/json' -H 'Accept: application/json' ${AUTH[@]+"${AUTH[@]}"} -d "$PAYLOAD")" \
+            || { warn "Expo 푸시 API 요청에 실패했습니다(네트워크/타임아웃). 알림이 전달되지 않았을 수 있습니다."; exit 0; }
+
+          if [ "$HTTP" != "200" ]; then warn "Expo 푸시 API가 HTTP $HTTP 를 반환했습니다."; exit 0; fi
+
+          # ticket 수락은 기기 수신을 보장하지 않는다. 오류 ticket만 집계한다.
+          ERRORS="$(jq -r '[.data[]? | select(.status=="error")] | length' "$RESP" 2>/dev/null || echo "?")"
+          OKS="$(jq -r '[.data[]? | select(.status=="ok")] | length' "$RESP" 2>/dev/null || echo "?")"
+          echo "Expo ticket: accepted=$OKS error=$ERRORS (수락은 기기 수신 확인이 아닙니다)"
+          if [ "$ERRORS" != "0" ]; then
+            jq -r '.data[]? | select(.status=="error") | "  - \(.message // "unknown") [\(.details.error // "-")]"' "$RESP" 2>/dev/null
+            warn "일부 알림 ticket이 오류입니다. DeviceNotRegistered 이면 토큰을 다시 발급해 갱신하세요."
+          fi
+          exit 0
