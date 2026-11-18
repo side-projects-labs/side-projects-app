@@ -22,6 +22,7 @@ EAS Build/Submit 기준. 계정 로그인과 자격증명 등록은 사람이 �
 - 사전 점검: `npm run typecheck && npx expo lint && npx expo-doctor`
 
 ## GitHub Actions 릴리즈
+- `.github/workflows/ci.yml`: PR과 master push마다 typecheck, lint, expo-doctor를 실행한다(EAS 빌드는 포함하지 않는다).
 - `.github/workflows/release-android.yml`: `android-v*` 태그 push → production 빌드 + Play 내부 테스트 제출. 수동 실행(workflow_dispatch)으로 preview/production 선택 가능.
 - `.github/workflows/release-ios.yml`: iOS 전용 별도 워크플로. Apple 설정 전까지 수동 실행 골격이며 iOS 프로필은 `eas.json`에 아직 없다.
 - 필요한 저장소 Secret: `EXPO_TOKEN`(expo.dev 액세스 토큰). 키스토어·Play/Apple 자격증명은 EAS가 보관하며 GitHub에 두지 않는다.
