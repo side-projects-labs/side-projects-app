@@ -5,7 +5,7 @@ EAS Build/Submit 기준. 계정 로그인과 자격증명 등록은 사람이 �
 ## 최초 1회
 1. `npx eas-cli login`
 2. `npx eas-cli init` — EAS 프로젝트를 만들고 `app.json`의 `extra.eas.projectId`를 기록한다(푸시 토큰 발급에 필요).
-3. FCM v1: Firebase 프로젝트에 패키지 `com.sideprojectslabs.app` Android 앱을 등록하고 `google-services.json`을 받는다. 파일은 커밋하지 않고 EAS file secret으로 올린 뒤 `app.json`의 `android.googleServicesFile`에서 참조한다. FCM 서비스 계정 키는 `eas credentials`로 등록한다.
+3. FCM v1: Firebase 프로젝트에 패키지 `com.sideprojectslabs.app` Android 앱을 등록하고 `google-services.json`을 받는다. 파일은 커밋하지 않고 EAS 파일 환경변수 `GOOGLE_SERVICES_JSON`(production/preview)으로 올린다. `app.config.ts`가 이 값을 `android.googleServicesFile`로 주입하며, production 빌드에서 누락되면 빌드가 실패한다. development 프로필에는 아직 등록하지 않아 dev 빌드에서는 푸시 토큰이 발급되지 않는다. FCM 서비스 계정 키는 `eas credentials`로 등록한다.
 4. 업로드 키스토어는 `eas credentials`로 EAS가 생성·보관하게 한다. 키스토어/키 파일은 저장소에 넣지 않는다.
 5. Play Console에서 앱을 만들고 첫 AAB는 수동 업로드한다. 이후 `submit:android`용 서비스 계정 키를 `eas credentials`에 등록한다.
 

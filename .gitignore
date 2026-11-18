@@ -41,3 +41,8 @@ example
 # generated native folders
 /ios
 /android
+
+# Firebase / FCM 자격증명 (EAS 환경변수·credentials로만 관리)
+google-services.json
+GoogleService-Info.plist
+*-firebase-adminsdk-*.json
