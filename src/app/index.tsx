@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, Stack } from 'expo-router';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,17 @@ export default function ProjectListScreen() {
     <SafeAreaView
       style={[styles.screen, { backgroundColor: t.background }]}
       edges={['bottom', 'left', 'right']}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Link href="/notifications" asChild>
+              <Pressable accessibilityRole="button" accessibilityLabel="배포 알림 설정" hitSlop={8}>
+                <Text style={{ fontSize: 20, color: t.accent }}>🔔</Text>
+              </Pressable>
+            </Link>
+          ),
+        }}
+      />
       <FlatList
         data={projects}
         keyExtractor={(p) => p.id}
