@@ -41,6 +41,17 @@
     },
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "6fb0c33d-05bf-4175-a5fd-398e3bea0147"
+      }
+    },
+    "owner": "yeoncheolss-team"
   }
 }
