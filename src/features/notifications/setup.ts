@@ -4,13 +4,18 @@ import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 
-export const DEPLOYMENT_CHANNEL = 'deployments';
+/**
+ * Android 알림 채널은 한번 만들어지면 앱이 소리·중요도를 바꿀 수 없다.
+ * 설정을 바꿀 때는 ID를 올리고(v2, v3…) 이전 채널을 지운다. 발송 측(notify-deployment.yml)의 channelId와 같아야 한다.
+ */
+export const DEPLOYMENT_CHANNEL = 'deployments-v2';
+const LEGACY_CHANNELS = ['deployments'];
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
@@ -25,9 +30,16 @@ export type RegistrationResult =
  */
 export async function registerForDeploymentPush(): Promise<RegistrationResult> {
   if (Platform.OS === 'android') {
+    // 소리 없이 만들어진 이전 채널은 앱이 수정할 수 없으므로 지우고 새 채널을 만든다.
+    await Promise.all(
+      LEGACY_CHANNELS.map((id) =>
+        Notifications.deleteNotificationChannelAsync(id).catch(() => undefined),
+      ),
+    );
     await Notifications.setNotificationChannelAsync(DEPLOYMENT_CHANNEL, {
       name: '배포 알림',
       importance: AndroidImportance.HIGH,
+      sound: 'default',
     });
   }
   if (!Device.isDevice) return { ok: false, reason: 'not-device' };

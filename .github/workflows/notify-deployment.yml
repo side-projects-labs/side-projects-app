@@ -86,7 +86,7 @@ jobs:
             --arg tokens "$PUSH_TOKENS" --arg title "$TITLE" --arg body "$BODY" \
             --arg pid "$PROJECT_ID" --arg st "$STATUS" --arg eid "$EVENT_ID" '
             ($tokens | split(",") | map(gsub("\\s"; "")) | map(select(startswith("ExponentPushToken[") or startswith("ExpoPushToken[")))) as $t
-            | [ $t[] | { to: ., title: $title, body: $body, channelId: "deployments", priority: "high",
+            | [ $t[] | { to: ., title: $title, body: $body, channelId: "deployments-v2", sound: "default", priority: "high",
                          data: { version: 1, eventId: $eid, projectId: $pid, status: $st } } ]')" || { warn "페이로드 생성에 실패했습니다."; exit 0; }
 
           COUNT="$(jq 'length' <<< "$PAYLOAD")"
