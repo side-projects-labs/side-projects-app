@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "id": "portfolio-admin",
+      "name": "Portfolio Admin",
+      "description": "포트폴리오 관리자",
+      "icon": "🗂️",
+      "url": "https://admin.ycseng.com",
+      "repo": "side-projects-labs/portfolio-admin"
+    },
+    {
+      "id": "jobs-scrap-dashboard",
+      "name": "Jobs Scrap Dashboard",
+      "description": "FE 공고 데이터 대시보드",
+      "icon": "📊",
+      "url": "https://scrap.ycseng.com",
+      "repo": "side-projects-labs/jobs-scrap-dashboard"
+    },
+    {
+      "id": "Dreamweaver-AI",
+      "name": "Dreamweaver AI",
+      "description": "나만의 동화책 만들기 with AI",
+      "icon": "📖",
+      "url": "https://dreamweaver-ai-beta.vercel.app",
+      "repo": "side-projects-labs/Dreamweaver-AI"
+    },
+    {
+      "id": "stock-ai-platform",
+      "name": "Stock AI Platform",
+      "description": "주식 AI 분석 및 종목 추천",
+      "icon": "📈",
+      "url": "https://stock.ycseng.com",
+      "repo": "side-projects-labs/stock-ai-platform"
+    }
+  ]
+}
