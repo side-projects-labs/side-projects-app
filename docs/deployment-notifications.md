@@ -19,6 +19,10 @@
 
 토큰을 아는 사람은 해당 기기로 알림을 보낼 수 있다. 저장소 코드, 이슈, 로그에 남기지 않는다(워크플로는 로그에서 토큰을 마스킹한다).
 
+## 수동 시험 발송
+Actions 탭 → **Notify test** → *Run workflow*에서 프로젝트와 상태를 골라 실행한다. 이 저장소에 `EXPO_PUSH_TOKENS` 시크릿이 있어야 한다. 프로젝트 선택지는 `catalog/projects.json`의 id와 같게 유지한다(카탈로그에 프로젝트를 추가하면 `notify-test.yml`의 options도 갱신).
+CLI: `gh workflow run notify-test.yml -f project-id=portfolio-admin -f status=succeeded`
+
 ## 호출하는 쪽 워크플로 예시
 ```yaml
 jobs:
