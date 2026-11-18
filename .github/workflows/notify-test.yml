@@ -1,0 +1,36 @@
+name: Notify test
+
+# 수동 시험 발송. Actions 탭에서 프로젝트와 상태를 골라 실행하면 등록된 기기로 배포 알림이 간다.
+# 필요한 시크릿: EXPO_PUSH_TOKENS (docs/deployment-notifications.md)
+on:
+  workflow_dispatch:
+    inputs:
+      project-id:
+        description: 알림을 보낼 프로젝트 (catalog/projects.json 의 id)
+        type: choice
+        required: true
+        options:
+          - portfolio-admin
+          - jobs-scrap-dashboard
+          - Dreamweaver-AI
+          - stock-ai-platform
+      status:
+        description: 배포 상태
+        type: choice
+        required: true
+        default: succeeded
+        options:
+          - started
+          - succeeded
+          - failed
+
+permissions: {}
+
+jobs:
+  send:
+    uses: ./.github/workflows/notify-deployment.yml
+    with:
+      project-id: ${{ inputs.project-id }}
+      status: ${{ inputs.status }}
+      detail: 수동 테스트
+    secrets: inherit
