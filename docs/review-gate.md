@@ -13,7 +13,7 @@ PR을 올리면 AGENTS.md 지침에 따라 에이전트가 `.agents/skills/code-
 - 리뷰가 제출·수정·기각되면(`pull_request_review`) `check`가 다시 실행되어 게이트를 재평가한다.
 
 ## 리뷰로 인정되는 조건 (`.github/scripts/review-gate.sh`)
-- 저장소 쓰기 권한자(OWNER·MEMBER·COLLABORATOR)가 남긴 리뷰.
+- 저장소 쓰기 권한자가 남긴 리뷰: `author_association`이 OWNER·MEMBER·COLLABORATOR이거나, 같은 저장소 브랜치에서 올린 PR의 작성자 본인(같은 저장소 브랜치에 푸시하려면 쓰기 권한이 필요하다). 비공개 조직 멤버는 Actions 토큰에서 association이 낮게 보일 수 있어 후자를 함께 인정한다. 포크 PR은 후자가 적용되지 않는다.
 - 본문에 마커 `<!-- code-review -->`가 있고, 리뷰가 달린 커밋이 PR HEAD와 같다.
 - `판정:` 줄이 있다(완성되지 않은 리뷰는 인정하지 않음).
 - 지적 줄은 `- [치명]`, `- [중요]`, `- [제안]`으로 시작한다. 형식은 스킬의 보고 형식을 따른다.

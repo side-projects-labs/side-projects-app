@@ -6,7 +6,7 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 ## 작업 시작
 - 이 문서와 `LOOP.md`, `STATE.md`를 읽는다.
 - 코드 작성은 `.agents/skills/tdd/SKILL.md`(테스트 우선), 앱 구현은 `.agents/skills/expo-webview/SKILL.md`, JOB 발견·실행·검증·학습은 `.agents/skills/engineering-loop/SKILL.md`를 적용한다.
-- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint + 리뷰 게이트)가 통과해야 병합할 수 있다.
+- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint + 테스트 + 리뷰 게이트)가 통과해야 병합할 수 있다.
 - 사용자 지시가 최우선이다. 기존 변경을 보존하고 현재 요청에 필요한 범위에서 진행한다.
 
 ## 구현 기준
@@ -34,7 +34,7 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 - 신뢰할 수 없는 입력(푸시 `data`, 원격 카탈로그, WebView가 요청하는 URL)은 **사용 전에 파싱·검증**하고, 잘못된 값은 버리거나 안전한 기본 동작으로 대체한다. 허용 목록 방식을 쓴다.
 - 저장소 키에는 버전 접미사를 둔다(`deployment-history-v1`). 형식을 바꾸면 버전을 올린다. 저장·네트워크 실패는 기능 저하로 처리하고 앱이 죽지 않게 한다.
 - 주석은 "왜"를 적는다. 요청 범위 밖의 리팩터링과 추측성 기능을 넣지 않는다.
-- 새 동작은 `.agents/skills/tdd/SKILL.md`에 따라 테스트를 먼저 쓴다. 테스트 러너가 아직 없으면 도입 여부를 먼저 확인하고, 실행하지 못한 테스트는 미실행으로 보고한다.
+- 새 동작은 `.agents/skills/tdd/SKILL.md`에 따라 테스트(Vitest, `npm test`)를 먼저 쓴다. 테스트 파일은 대상 옆에 `<이름>.test.ts`로 둔다. 실행하지 못한 테스트는 미실행으로 보고한다.
 
 ## 검증과 보고
 - 실제 존재하는 package scripts만 실행한다. 앱 초기화 전에는 실행 가능한 빌드·테스트가 없다고 기록한다.

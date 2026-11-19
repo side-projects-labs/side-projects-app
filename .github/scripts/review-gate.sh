@@ -4,13 +4,17 @@
 #
 # 통과 조건: 최신 커밋(HEAD)에 남긴 리뷰가 있고, `판정:` 줄이 있으며, [치명]·[중요] 지적이 없고 판정이 '수정 필요'가 아니다.
 # 실패 조건(병합 차단): 리뷰 없음 / 이전 커밋에 대한 리뷰뿐 / 판정 줄 없음 / [치명]·[중요] 지적 있음 / 판정 '수정 필요'.
-# 리뷰 인정 기준: 저장소 쓰기 권한자(OWNER·MEMBER·COLLABORATOR)가 남긴 리뷰, 본문에 마커 `<!-- code-review -->`,
+# 리뷰 인정 기준: 저장소 쓰기 권한자가 남긴 리뷰, 본문에 마커 `<!-- code-review -->`,
 #   그리고 리뷰가 달린 커밋(commit_id)이 PR HEAD와 같아야 한다. 새 커밋을 푸시하면 이전 리뷰는 무효가 된다.
-# 입력(환경변수): GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA
+#   쓰기 권한자 판정: author_association 이 OWNER·MEMBER·COLLABORATOR 이거나, 같은 저장소 브랜치에서 올린 PR의 작성자 본인
+#   (같은 저장소 브랜치에 푸시하려면 쓰기 권한이 필요하다. 비공개 조직 멤버는 Actions 토큰에서 association 이 낮게 보일 수 있다).
+# 입력(환경변수): GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA, PR_AUTHOR, SAME_REPO(true|false)
 # 로컬 시험: REVIEWS_FILE=<reviews JSON 배열> HEAD_SHA=<sha> bash .github/scripts/review-gate.sh
 set -uo pipefail
 
 MARKER='<!-- code-review -->'
+PR_AUTHOR="${PR_AUTHOR:-}"
+SAME_REPO="${SAME_REPO:-false}"
 : "${HEAD_SHA:?HEAD_SHA 가 필요합니다}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -26,15 +30,19 @@ else
 fi
 
 # 가장 최근에 제출된 유효 리뷰 본문. 마커가 있고 HEAD 커밋에 달린 것만 본다.
-jq -r --arg sha "$HEAD_SHA" --arg marker "$MARKER" '
+jq -r --arg sha "$HEAD_SHA" --arg marker "$MARKER" --arg author "$PR_AUTHOR" --arg same "$SAME_REPO" '
   [ .[]
     | select(.commit_id == $sha)
     | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")
-    | select(.author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR")
+    | select(.author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR"
+             or ($same == "true" and $author != "" and (.user.login // "") == $author))
     | select((.body // "") | contains($marker)) ]
   | sort_by(.submitted_at) | last | .body // empty' "$WORK/reviews.json" > "$WORK/review.md"
 
 if [ ! -s "$WORK/review.md" ]; then
+  # 진단: 인정되지 않은 이유를 추적할 수 있게 리뷰 요약(본문 제외)을 출력한다.
+  echo "수신한 리뷰 요약(id state association commit marker):"
+  jq -r --arg marker "$MARKER" '.[] | "  \(.id) \(.state) \(.author_association) \((.commit_id // "")[0:7]) marker=\((.body // "") | contains($marker))"' "$WORK/reviews.json"
   block "최신 커밋(${HEAD_SHA:0:7})에 대한 코드 리뷰 코멘트가 없습니다. 리뷰를 남긴 뒤 병합하세요."
 fi
 
