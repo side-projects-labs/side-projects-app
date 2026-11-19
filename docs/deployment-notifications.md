@@ -77,6 +77,13 @@ jobs:
 - 토큰을 수동 등록하므로 기기 구독 관리, 중복 방지, 재시도 큐는 없다. 2단계(독립 알림 서버)에서 다룬다.
 - 같은 이벤트가 재실행되면 알림이 다시 간다. `eventId`는 `레포-run id-시도-상태`로 만들어 클라이언트가 구분할 수 있게 한다.
 
-## 검증 상태
+## 검증 상태 (2026-11-19)
 - 발송 스크립트: 로컬 모의 서버로 정상/부분 오류/HTTP 500/연결 실패/인증 헤더를 확인했다(모두 exit 0).
-- 미검증: 실제 Expo 푸시 전송, 기기 수신(포그라운드·백그라운드·종료), 알림 탭 이동, 다른 레포 워크플로 연결.
+- `EXPO_PUSH_TOKENS`는 **조직 시크릿**(`side-projects-labs`)으로 등록했다. 새 레포는 접근 범위만 확인하면 된다.
+- portfolio-admin: 실제 master 배포로 시작·성공 알림이 기기에 도착했다(포그라운드 수신 확인).
+- jobs-scrap-dashboard, Dreamweaver-AI, stock-ai-platform: 실제 Production 배포로 `deployment_status` 워크플로가 실행되고 Expo ticket이 수락됐다(`accepted=1 error=0`). 배포 한 건당 알림 실행은 한 번이라 중복은 관찰되지 않았다. Preview 배포는 skip된다.
+- 미검증: **실패 알림 전 구간**, 3개 레포의 기기 수신, 백그라운드·종료 상태 수신, 알림 탭 이동(새 앱 빌드 필요).
+
+## 알려진 한계: Vercel 실패 알림의 로그 링크
+Vercel Git 연동이 GitHub 배포 상태에 남기는 `log_url`/`target_url`은 성공·실패 모두 **배포 자체의 `*.vercel.app` 주소**다(빌드 로그 페이지가 아니다. 과거 실패 기록 기준). 앱은 `github.com`·`vercel.com`만 열 수 있어 이 주소를 거부하고 **프로젝트 화면으로 이동**한다. portfolio-admin은 GitHub Actions run 페이지가 열려 영향이 없다.
+Vercel 인스펙터 주소(`vercel.com/<team>/<project>/<deployment>`)를 만들려면 팀·프로젝트 슬러그가 필요해 별도 결정이 필요하다.
