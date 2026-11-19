@@ -10,16 +10,7 @@
 `projectId`는 카탈로그(`catalog/projects.json`)의 `id`(= 레포 이름)와 같아야 한다. 다르면 알림은 오지만 탭해도 이동하지 않는다.
 
 ## 알림 탭 시 이동
-| 상태 | 이동 |
-|---|---|
-| `failed` | 장애난 빌드 로그 페이지(`data.url`)를 인앱 브라우저(Chrome Custom Tabs)로 연다 |
-| `started` | 진행 중인 빌드 페이지(`data.url`)를 인앱 브라우저(Chrome Custom Tabs)로 연다 |
-| `succeeded` | 해당 프로젝트 WebView(현재 완료 페이지)를 연다 |
-
-- `url`은 재사용 워크플로의 선택 입력이다. 비우면 호출한 워크플로 run 페이지(`.../actions/runs/<id>`)를 쓴다. Vercel Git 연동(`deployment_status`)을 쓰는 레포는 `github.event.deployment_status.log_url`을 넘긴다.
-- 앱은 `https`이며 호스트가 `github.com`·`vercel.com`인 URL만 연다. 그 외나 `url`이 없으면 프로젝트 화면으로 이동한다.
-- 인앱 브라우저는 기기 브라우저의 로그인 세션을 쓰므로 GitHub·Vercel에 이미 로그인돼 있으면 바로 열린다.
-- 이 변경은 앱 빌드에 포함되므로 새 빌드를 설치해야 동작한다. 이전 앱은 `url`을 무시하고 프로젝트 화면을 연다.
+상태와 관계없이 알림을 탭하면 해당 프로젝트 화면(WebView)을 연다. 알림은 **어느 프로젝트에서 무슨 일이 났는지**(제목: 시작·완료·실패, 본문: 프로젝트)만 알려주고, 빌드 로그 등은 사용자가 직접 GitHub·Vercel에서 확인한다. 로그 페이지를 자동으로 여는 기능은 두지 않는다(Vercel Git 연동이 보고하는 `log_url`이 빌드 로그가 아니라 배포 주소라 쓸 수 없었다).
 
 ## 최초 설정
 1. **개발/preview 빌드 설치**: FCM 설정(`GOOGLE_SERVICES_JSON`)이 들어간 빌드여야 토큰이 발급된다. Expo Go와 에뮬레이터는 불가.
@@ -83,7 +74,3 @@ jobs:
 - portfolio-admin: 실제 master 배포로 시작·성공 알림이 기기에 도착했다(포그라운드 수신 확인).
 - jobs-scrap-dashboard, Dreamweaver-AI, stock-ai-platform: 실제 Production 배포로 `deployment_status` 워크플로가 실행되고 Expo ticket이 수락됐다(`accepted=1 error=0`). 배포 한 건당 알림 실행은 한 번이라 중복은 관찰되지 않았다. Preview 배포는 skip된다.
 - 미검증: **실패 알림 전 구간**, 3개 레포의 기기 수신, 백그라운드·종료 상태 수신, 알림 탭 이동(새 앱 빌드 필요).
-
-## 알려진 한계: Vercel 실패 알림의 로그 링크
-Vercel Git 연동이 GitHub 배포 상태에 남기는 `log_url`/`target_url`은 성공·실패 모두 **배포 자체의 `*.vercel.app` 주소**다(빌드 로그 페이지가 아니다. 과거 실패 기록 기준). 앱은 `github.com`·`vercel.com`만 열 수 있어 이 주소를 거부하고 **프로젝트 화면으로 이동**한다. portfolio-admin은 GitHub Actions run 페이지가 열려 영향이 없다.
-Vercel 인스펙터 주소(`vercel.com/<team>/<project>/<deployment>`)를 만들려면 팀·프로젝트 슬러그가 필요해 별도 결정이 필요하다.
