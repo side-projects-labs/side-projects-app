@@ -5,8 +5,8 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 
 ## 작업 시작
 - 이 문서와 `LOOP.md`, `STATE.md`를 읽는다.
-- 앱 구현은 `.agents/skills/expo-webview/SKILL.md`, JOB 발견·실행·검증·학습은 `.agents/skills/engineering-loop/SKILL.md`를 적용한다.
-- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint)가 통과해야 병합할 수 있다.
+- 코드 작성은 `.agents/skills/tdd/SKILL.md`(테스트 우선), 앱 구현은 `.agents/skills/expo-webview/SKILL.md`, JOB 발견·실행·검증·학습은 `.agents/skills/engineering-loop/SKILL.md`를 적용한다.
+- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint + 테스트 + 리뷰 게이트)가 통과해야 병합할 수 있다.
 - 사용자 지시가 최우선이다. 기존 변경을 보존하고 현재 요청에 필요한 범위에서 진행한다.
 
 ## 구현 기준
@@ -17,6 +17,25 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 - 로딩·오류·재시도·뒤로 가기·외부 링크·접근성·safe area를 함께 고려한다.
 - 비밀 키와 개인 데이터는 코드, 학습 기록, 로그에 저장하지 않는다. EXPO_PUBLIC_ 값은 공개 정보로 취급한다.
 
+## 코드 구조와 작성 지침
+구조는 아래를 따르고, 새 코드는 알맞은 위치에 둔다.
+
+| 위치 | 역할 |
+|---|---|
+| `src/app/` | expo-router 화면(라우트)만 둔다. 화면은 얇게 유지하고 로직은 `features`로 뺀다. |
+| `src/features/<도메인>/` | 도메인 로직. 현재 `notifications`(알림 계약·등록·라우팅·이력), `projects`(카탈로그·URL 정책). 새 도메인은 폴더를 새로 만든다. |
+| `src/theme/` | 색상 팔레트와 `useTheme`. 화면에서 색을 하드코딩하지 않는다. |
+| `catalog/projects.json` | 프로젝트 목록 원본(`docs/catalog.md`). |
+| `.github/workflows/`, `.github/scripts/` | 알림·릴리즈·CI. 재사용 워크플로는 SHA로 고정해 호출한다. |
+| `docs/` | 운영 문서. 동작을 바꾸면 관련 문서를 함께 갱신한다. |
+
+- 임포트는 `@/`(= `src/`) 별칭을 쓴다. 파일 이름은 kebab-case, 훅은 `use-*.ts`, 컴포넌트·화면은 함수 컴포넌트다.
+- **순수 로직과 React를 분리**한다. 파싱·검증·병합 같은 계산은 React와 네이티브 모듈 없이 동작하는 순수 함수로 두어(`contract.ts`, `url-policy.ts`, `catalog.ts` 방식) 테스트할 수 있게 한다.
+- 신뢰할 수 없는 입력(푸시 `data`, 원격 카탈로그, WebView가 요청하는 URL)은 **사용 전에 파싱·검증**하고, 잘못된 값은 버리거나 안전한 기본 동작으로 대체한다. 허용 목록 방식을 쓴다.
+- 저장소 키에는 버전 접미사를 둔다(`deployment-history-v1`). 형식을 바꾸면 버전을 올린다. 저장·네트워크 실패는 기능 저하로 처리하고 앱이 죽지 않게 한다.
+- 주석은 "왜"를 적는다. 요청 범위 밖의 리팩터링과 추측성 기능을 넣지 않는다.
+- 새 동작은 `.agents/skills/tdd/SKILL.md`에 따라 테스트(Vitest, `npm test`)를 먼저 쓴다. 테스트 파일은 대상 옆에 `<이름>.test.ts`로 둔다. 실행하지 못한 테스트는 미실행으로 보고한다.
+
 ## 검증과 보고
 - 실제 존재하는 package scripts만 실행한다. 앱 초기화 전에는 실행 가능한 빌드·테스트가 없다고 기록한다.
 - 변경에 맞는 타입·정적 검사 및 의미 있는 동작 검증을 수행한다. iOS/Android 검증 여부를 각각 보고한다.
@@ -26,6 +45,7 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 ## 운영 지침
 - 배포 알림 연결·수정은 `.agents/skills/deployment-notifications/SKILL.md`, 카탈로그 변경은 `.agents/skills/project-catalog/SKILL.md`를 적용한다.
 - 브랜치는 `feat|fix|docs|ci/<이슈번호>-<설명>` 형식을 쓰고 커밋·PR 본문에 `Refs #<이슈번호>`를 남긴다. PR 병합은 담당자의 지시가 있을 때만 하고, 병합 전 CI와 mergeable 상태를 확인한다.
+- **PR을 올리면(또는 커밋을 푸시하면) 바로 `.agents/skills/code-review/SKILL.md` 기준으로 직접 리뷰하고, 결과를 PR 리뷰 코멘트로 남긴다**(`bash .github/scripts/post-review.sh <번호> <파일>` — 리뷰 게시 후 CI `check`를 재실행해 게이트에 반영한다). 지적은 치명·중요·제안 3단계로 분류하고 스킬의 고정 형식(마커, `[치명]` 줄, `판정:` 줄)을 그대로 쓴다. **치명 또는 중요가 있거나 최신 커밋에 대한 리뷰가 없으면 CI 리뷰 게이트가 병합을 차단한다**(`docs/review-gate.md`). 치명·중요는 같은 PR에서 고치고 푸시한 뒤 새 HEAD 기준으로 리뷰를 다시 남긴다.
 - 다른 조직 레포를 수정할 때는 레포별 PR로 진행한다. 병합 시 Production 배포가 일어날 수 있으니 먼저 알린다.
 - 시크릿·토큰 값은 사람이 등록한다. 에이전트는 값을 읽거나 저장소·이슈·로그에 남기지 않고 등록 방법만 안내한다. 조직 시크릿 권한(`admin:org`)이 없으면 직접 조회하지 못한다.
 - 앱 빌드는 EAS를 쓴다(`Release Android` 워크플로, preview는 `gh workflow run "Release Android" -f profile=preview`). 비용이 드는 작업이라 사용자가 요청할 때만 시작한다. GitHub Actions의 `EXPO_TOKEN` 로봇은 환경변수를 읽도록 **Developer 이상 역할**이어야 한다.
