@@ -17,11 +17,6 @@ on:
         type: string
         required: false
         default: ''
-      url:
-        description: 알림 탭 시 열 빌드·로그 URL. 비우면 호출한 워크플로 run 페이지(started·failed에만 사용)
-        type: string
-        required: false
-        default: ''
       event-id:
         description: 이벤트 식별자. 비우면 레포·run·시도·상태로 만든다
         type: string
@@ -48,7 +43,6 @@ jobs:
           STATUS: ${{ inputs.status }}
           DETAIL: ${{ inputs.detail }}
           EVENT_ID: ${{ inputs.event-id }}
-          LINK_URL: ${{ inputs.url }}
           PUSH_TOKENS: ${{ secrets.EXPO_PUSH_TOKENS }}
           EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
         shell: bash
@@ -79,12 +73,6 @@ jobs:
             EVENT_ID="${GITHUB_REPOSITORY:-local}-${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-1}-${STATUS}"
           fi
 
-          # started·failed 탭 시 열 빌드/로그 페이지. 지정이 없으면 호출한 워크플로 run 페이지를 쓴다.
-          LINK_URL="${LINK_URL:-}"
-          if [ -z "$LINK_URL" ] && [ "$STATUS" != "succeeded" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_RUN_ID:-}" ]; then
-            LINK_URL="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          fi
-
           BODY="$PROJECT_ID"
           if [ -n "$DETAIL" ]; then BODY="$PROJECT_ID · $DETAIL"; fi
 
@@ -96,10 +84,10 @@ jobs:
 
           PAYLOAD="$(jq -n \
             --arg tokens "$PUSH_TOKENS" --arg title "$TITLE" --arg body "$BODY" \
-            --arg pid "$PROJECT_ID" --arg st "$STATUS" --arg eid "$EVENT_ID" --arg url "$LINK_URL" '
+            --arg pid "$PROJECT_ID" --arg st "$STATUS" --arg eid "$EVENT_ID" '
             ($tokens | split(",") | map(gsub("\\s"; "")) | map(select(startswith("ExponentPushToken[") or startswith("ExpoPushToken[")))) as $t
             | [ $t[] | { to: ., title: $title, body: $body, channelId: "deployments-v2", sound: "default", priority: "high",
-                         data: ({ version: 1, eventId: $eid, projectId: $pid, status: $st } + (if $url != "" then { url: $url } else {} end)) } ]')" || { warn "페이로드 생성에 실패했습니다."; exit 0; }
+                         data: { version: 1, eventId: $eid, projectId: $pid, status: $st } } ]')" || { warn "페이로드 생성에 실패했습니다."; exit 0; }
 
           COUNT="$(jq 'length' <<< "$PAYLOAD")"
           if [ "$COUNT" -eq 0 ]; then warn "유효한 Expo 푸시 토큰이 없습니다(ExponentPushToken[...] 형식)."; exit 0; fi
