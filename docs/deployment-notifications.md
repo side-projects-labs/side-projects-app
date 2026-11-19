@@ -12,12 +12,13 @@
 ## 알림 탭 시 이동
 | 상태 | 이동 |
 |---|---|
-| `failed` | 장애난 빌드 로그 페이지(`data.url`)를 기기 브라우저로 연다 |
-| `started` | 진행 중인 빌드 페이지(`data.url`)를 기기 브라우저로 연다 |
+| `failed` | 장애난 빌드 로그 페이지(`data.url`)를 인앱 브라우저(Chrome Custom Tabs)로 연다 |
+| `started` | 진행 중인 빌드 페이지(`data.url`)를 인앱 브라우저(Chrome Custom Tabs)로 연다 |
 | `succeeded` | 해당 프로젝트 WebView(현재 완료 페이지)를 연다 |
 
 - `url`은 재사용 워크플로의 선택 입력이다. 비우면 호출한 워크플로 run 페이지(`.../actions/runs/<id>`)를 쓴다. Vercel Git 연동(`deployment_status`)을 쓰는 레포는 `github.event.deployment_status.log_url`을 넘긴다.
 - 앱은 `https`이며 호스트가 `github.com`·`vercel.com`인 URL만 연다. 그 외나 `url`이 없으면 프로젝트 화면으로 이동한다.
+- 인앱 브라우저는 기기 브라우저의 로그인 세션을 쓰므로 GitHub·Vercel에 이미 로그인돼 있으면 바로 열린다.
 - 이 변경은 앱 빌드에 포함되므로 새 빌드를 설치해야 동작한다. 이전 앱은 `url`을 무시하고 프로젝트 화면을 연다.
 
 ## 최초 설정
