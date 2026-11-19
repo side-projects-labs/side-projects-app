@@ -41,6 +41,8 @@ jobs:
 
   # 참고용 점검. 의존성 호환 경고는 병합 조건이 아니라서 별도 job으로 분리한다.
   doctor:
+    # 리뷰 코멘트로 재실행될 때는 건너뛴다(게이트만 다시 평가하면 된다).
+    if: github.event_name != 'pull_request_review'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
