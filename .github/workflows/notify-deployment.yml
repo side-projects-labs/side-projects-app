@@ -73,6 +73,9 @@ jobs:
             EVENT_ID="${GITHUB_REPOSITORY:-local}-${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-1}-${STATUS}"
           fi
 
+          # Vercel Git 연동의 deployment.ref 는 40자 커밋 해시라 알림이 길어진다. 해시면 7자로 줄인다.
+          if [[ "$DETAIL" =~ ^[0-9a-f]{40}$ ]]; then DETAIL="${DETAIL:0:7}"; fi
+
           BODY="$PROJECT_ID"
           if [ -n "$DETAIL" ]; then BODY="$PROJECT_ID · $DETAIL"; fi
 

@@ -16,11 +16,18 @@ export default function ProjectListScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Link href="/notifications" asChild>
-              <Pressable accessibilityRole="button" accessibilityLabel="배포 알림 설정" hitSlop={8}>
-                <Text style={{ fontSize: 20, color: t.accent }}>🔔</Text>
-              </Pressable>
-            </Link>
+            <View style={styles.headerActions}>
+              <Link href="/history" asChild>
+                <Pressable accessibilityRole="button" accessibilityLabel="배포 이력" hitSlop={8}>
+                  <Text style={{ fontSize: 20, color: t.accent }}>🕘</Text>
+                </Pressable>
+              </Link>
+              <Link href="/notifications" asChild>
+                <Pressable accessibilityRole="button" accessibilityLabel="배포 알림 설정" hitSlop={8}>
+                  <Text style={{ fontSize: 20, color: t.accent }}>🔔</Text>
+                </Pressable>
+              </Link>
+            </View>
           ),
         }}
       />
@@ -66,6 +73,7 @@ export default function ProjectListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  headerActions: { flexDirection: 'row', gap: 16 },
   list: { padding: 16, gap: 12 },
   card: {
     flexDirection: 'row',
