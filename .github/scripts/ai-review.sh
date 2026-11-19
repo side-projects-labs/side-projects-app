@@ -48,9 +48,18 @@ awk '
   !skip { print }
 ' "$WORK/raw.diff" > "$WORK/review.diff"
 
+# lockfile은 리뷰에서 제외하므로, 공급망 공격에 쓰이는 비공식 레지스트리 주소만 별도로 막는다.
+LOCK_BAD="$(awk '
+  /^diff --git / { inlock = ($0 ~ /package-lock\.json/) }
+  inlock && /^\+[^+]/ && /"resolved":/ && !/"resolved": "https:\/\/registry\.npmjs\.org\// { print }
+' "$WORK/raw.diff" | head -3)"
+if [ -n "$LOCK_BAD" ]; then
+  fail "package-lock.json에 npm 공식 레지스트리가 아닌 resolved 주소가 추가됐습니다. 의도한 변경인지 사람이 확인하세요."
+fi
+
 SIZE="$(wc -c < "$WORK/review.diff" | tr -d ' ')"
 if [ "$SIZE" -eq 0 ]; then
-  printf '## ✅ 자동 리뷰: 승인 (`%s`)\n\n리뷰 대상 변경(lockfile·바이너리 제외)이 없습니다.\n' "$SHORT" > "$WORK/ok.md"
+  printf '## ✅ 자동 리뷰: 승인 (`%s`)\n\n리뷰 대상 변경(lockfile·바이너리 제외)이 없습니다. lockfile 의존성 변경은 내용을 리뷰하지 않으며, npm 공식 레지스트리 외 주소만 차단합니다.\n' "$SHORT" > "$WORK/ok.md"
   post_comment "$WORK/ok.md" || exit 1
   exit 0
 fi
