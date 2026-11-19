@@ -14,9 +14,27 @@ export type ProjectEntry = {
   icon: string;
   url: string;
   repo?: string;
+  /**
+   * WebView 안에서 함께 열 추가 호스트(소셜 로그인 등). 서비스 URL의 호스트는 항상 허용된다.
+   * 호스트 이름만 쓴다(HTTPS 전용, 와일드카드·포트·경로 불가). 목록에 없는 외부 주소는 기기 브라우저로 연다.
+   */
+  allowedHosts?: string[];
 };
 
 const MAX_PROJECTS = 50;
+const MAX_ALLOWED_HOSTS = 10;
+const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/;
+
+/** 호스트 이름 목록을 검증한다. 형식이 틀린 항목은 버리고, 남는 게 없으면 undefined. */
+function parseAllowedHosts(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const hosts = value
+    .filter((h): h is string => typeof h === 'string')
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => HOSTNAME.test(h));
+  const unique = [...new Set(hosts)].slice(0, MAX_ALLOWED_HOSTS);
+  return unique.length > 0 ? unique : undefined;
+}
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0;
@@ -62,6 +80,7 @@ export function parseCatalog(data: unknown): ProjectEntry[] | null {
       icon: p.icon,
       url: p.url,
       repo: isNonEmptyString(p.repo) ? p.repo : undefined,
+      allowedHosts: parseAllowedHosts(p.allowedHosts),
     });
   }
   return result.length > 0 ? result : null;
