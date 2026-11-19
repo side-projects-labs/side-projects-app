@@ -1,0 +1,35 @@
+name: AI review
+
+# master 대상 PR을 AI가 리뷰하고 결과를 코멘트로 남긴다. 최신 커밋의 결과가 승인이 아니면 이 체크가 실패한다.
+# 브랜치 보호의 필수 체크로 `ai-review`를 지정하면 승인 전까지 병합이 차단된다(docs/ai-review.md).
+#
+# pull_request_target: 워크플로·스크립트·리뷰 기준을 항상 base 브랜치(master)에서 가져온다.
+# PR이 리뷰 로직을 바꿔 스스로 통과하지 못하게 하려는 것이며, PR 코드는 체크아웃·실행하지 않는다(diff만 API로 읽는다).
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out base branch (PR 코드 아님)
+        uses: actions/checkout@v4
+      - name: Review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: bash .github/scripts/ai-review.sh
