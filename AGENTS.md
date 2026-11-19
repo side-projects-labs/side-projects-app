@@ -6,6 +6,7 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 ## 작업 시작
 - 이 문서와 `LOOP.md`, `STATE.md`를 읽는다.
 - 앱 구현은 `.agents/skills/expo-webview/SKILL.md`, JOB 발견·실행·검증·학습은 `.agents/skills/engineering-loop/SKILL.md`를 적용한다.
+- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint)가 통과해야 병합할 수 있다.
 - 사용자 지시가 최우선이다. 기존 변경을 보존하고 현재 요청에 필요한 범위에서 진행한다.
 
 ## 구현 기준

@@ -13,6 +13,7 @@ permissions:
   contents: read
 
 jobs:
+  # master 대상 PR의 필수 체크(브랜치 보호): 타입 체크 + lint. job 이름 `check`를 바꾸면 보호 규칙도 함께 바꿔야 한다.
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -25,4 +26,16 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx expo lint
+
+  # 참고용 점검. 의존성 호환 경고는 병합 조건이 아니라서 별도 job으로 분리한다.
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npx expo-doctor
