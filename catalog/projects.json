@@ -7,7 +7,12 @@
       "description": "포트폴리오 관리자",
       "icon": "🗂️",
       "url": "https://admin.ycseng.com",
-      "repo": "side-projects-labs/portfolio-admin"
+      "repo": "side-projects-labs/portfolio-admin",
+      "allowedHosts": [
+        "api.ycseng.com",
+        "github.com",
+        "accounts.google.com"
+      ]
     },
     {
       "id": "jobs-scrap-dashboard",

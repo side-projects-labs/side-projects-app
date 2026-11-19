@@ -22,6 +22,15 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 - 구현자의 자체 확인과 독립 검증을 구분한다. 독립 검증 없이 JOB을 완료 처리하지 않는다.
 - 실행 결과, 미검증 항목, 다음 행동을 기록한다. 자율 실행의 경계와 종료 조건은 LOOP.md를 따른다.
 
+## 운영 지침
+- 배포 알림 연결·수정은 `.agents/skills/deployment-notifications/SKILL.md`, 카탈로그 변경은 `.agents/skills/project-catalog/SKILL.md`를 적용한다.
+- 브랜치는 `feat|fix|docs|ci/<이슈번호>-<설명>` 형식을 쓰고 커밋·PR 본문에 `Refs #<이슈번호>`를 남긴다. PR 병합은 담당자의 지시가 있을 때만 하고, 병합 전 CI와 mergeable 상태를 확인한다.
+- 다른 조직 레포를 수정할 때는 레포별 PR로 진행한다. 병합 시 Production 배포가 일어날 수 있으니 먼저 알린다.
+- 시크릿·토큰 값은 사람이 등록한다. 에이전트는 값을 읽거나 저장소·이슈·로그에 남기지 않고 등록 방법만 안내한다. 조직 시크릿 권한(`admin:org`)이 없으면 직접 조회하지 못한다.
+- 앱 빌드는 EAS를 쓴다(`Release Android` 워크플로, preview는 `gh workflow run "Release Android" -f profile=preview`). 비용이 드는 작업이라 사용자가 요청할 때만 시작한다. GitHub Actions의 `EXPO_TOKEN` 로봇은 환경변수를 읽도록 **Developer 이상 역할**이어야 한다.
+- 현재 `expo-updates`가 없어 JS만 바뀌어도 새 APK를 설치해야 반영된다. 여러 변경을 모아 빌드할지 사용자에게 확인한다.
+- 알림 문구·동작 변경 시 앱 코드(`src/features/notifications`)와 재사용 워크플로, 이를 호출하는 레포의 SHA를 함께 점검한다.
+
 <!-- portfolio-hub:project-guidance:start -->
 ## 포트폴리오 문서 입력 계약
 
