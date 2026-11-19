@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # 리뷰 코멘트가 남거나 수정되면 게이트를 다시 평가한다(새 필수 체크 없이 `check`를 갱신).
+  pull_request_review:
+    types: [submitted, edited, dismissed]
   push:
     branches: [master]
 
@@ -11,6 +14,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   # master 대상 PR의 필수 체크(브랜치 보호): 타입 체크 + lint. job 이름 `check`를 바꾸면 보호 규칙도 함께 바꿔야 한다.
@@ -26,6 +30,14 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx expo lint
+      # 리뷰 게이트: master 대상 PR은 최신 커밋의 리뷰 코멘트에 치명·중요 지적이 없어야 통과한다(docs/review-gate.md).
+      - name: Review gate
+        if: github.event_name != 'push' && github.event.pull_request.base.ref == 'master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/review-gate.sh
 
   # 참고용 점검. 의존성 호환 경고는 병합 조건이 아니라서 별도 job으로 분리한다.
   doctor:

@@ -6,7 +6,7 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 ## 작업 시작
 - 이 문서와 `LOOP.md`, `STATE.md`를 읽는다.
 - 코드 작성은 `.agents/skills/tdd/SKILL.md`(테스트 우선), 앱 구현은 `.agents/skills/expo-webview/SKILL.md`, JOB 발견·실행·검증·학습은 `.agents/skills/engineering-loop/SKILL.md`를 적용한다.
-- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint)가 통과해야 병합할 수 있다.
+- PR 리뷰는 `.agents/skills/code-review/SKILL.md`를 적용한다. master 대상 PR은 CI의 `check`(타입 체크 + lint + 리뷰 게이트)가 통과해야 병합할 수 있다.
 - 사용자 지시가 최우선이다. 기존 변경을 보존하고 현재 요청에 필요한 범위에서 진행한다.
 
 ## 구현 기준
@@ -45,7 +45,7 @@ React Native + Expo 앱에서 사이드 프로젝트를 목록으로 탐색하�
 ## 운영 지침
 - 배포 알림 연결·수정은 `.agents/skills/deployment-notifications/SKILL.md`, 카탈로그 변경은 `.agents/skills/project-catalog/SKILL.md`를 적용한다.
 - 브랜치는 `feat|fix|docs|ci/<이슈번호>-<설명>` 형식을 쓰고 커밋·PR 본문에 `Refs #<이슈번호>`를 남긴다. PR 병합은 담당자의 지시가 있을 때만 하고, 병합 전 CI와 mergeable 상태를 확인한다.
-- **PR을 올리면 바로 `.agents/skills/code-review/SKILL.md` 기준으로 직접 리뷰하고, 결과를 PR 리뷰 코멘트로 남긴다**(`gh pr review <번호> --comment --body-file <파일>`). 형식은 스킬의 보고 형식을 따르고(차단/권장, 확인한 범위와 못 한 범위), 승인 또는 수정 필요 판정을 명시한다. 차단 지적은 같은 PR에서 고치고 어떻게 해결했는지 코멘트에 이어 남긴다. 자동 리뷰 CI(`ai-review`, `docs/ai-review.md`)가 켜져 있어도 이 리뷰는 별개로 남긴다.
+- **PR을 올리면(또는 커밋을 푸시하면) 바로 `.agents/skills/code-review/SKILL.md` 기준으로 직접 리뷰하고, 결과를 PR 리뷰 코멘트로 남긴다**(`gh pr review <번호> --comment --body-file <파일>`). 지적은 치명·중요·제안 3단계로 분류하고 스킬의 고정 형식(마커, `[치명]` 줄, `판정:` 줄)을 그대로 쓴다. **치명 또는 중요가 있거나 최신 커밋에 대한 리뷰가 없으면 CI 리뷰 게이트가 병합을 차단한다**(`docs/review-gate.md`). 치명·중요는 같은 PR에서 고치고 푸시한 뒤 새 HEAD 기준으로 리뷰를 다시 남긴다.
 - 다른 조직 레포를 수정할 때는 레포별 PR로 진행한다. 병합 시 Production 배포가 일어날 수 있으니 먼저 알린다.
 - 시크릿·토큰 값은 사람이 등록한다. 에이전트는 값을 읽거나 저장소·이슈·로그에 남기지 않고 등록 방법만 안내한다. 조직 시크릿 권한(`admin:org`)이 없으면 직접 조회하지 못한다.
 - 앱 빌드는 EAS를 쓴다(`Release Android` 워크플로, preview는 `gh workflow run "Release Android" -f profile=preview`). 비용이 드는 작업이라 사용자가 요청할 때만 시작한다. GitHub Actions의 `EXPO_TOKEN` 로봇은 환경변수를 읽도록 **Developer 이상 역할**이어야 한다.
