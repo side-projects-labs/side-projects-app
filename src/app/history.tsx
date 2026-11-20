@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -8,6 +9,7 @@ import {
   clearHistory,
   loadHistory,
   removeHistory,
+  toHistoryItem,
   type HistoryItem,
 } from '@/features/notifications/history';
 import {
@@ -86,7 +88,10 @@ export default function HistoryScreen() {
   );
 
   const clear = async () => {
-    await clearHistory();
+    // 알림 센터에 남아 있지만 아직 이력에 없는 알림도 함께 기억해, 지운 뒤 앱을 열어도 되살아나지 않게 한다.
+    const presented = await Notifications.getPresentedNotificationsAsync().catch(() => []);
+    const ids = presented.map(toHistoryItem).flatMap((i) => (i ? [i.eventId] : []));
+    await clearHistory(ids);
     setItems([]);
   };
 

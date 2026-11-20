@@ -118,11 +118,14 @@ export function removeHistory(eventId: string): Promise<void> {
   });
 }
 
-/** 전체 삭제. 지금 이력에 있던 항목은 알림 센터 동기화로 되살아나지 않게 id를 기억한다. */
-export function clearHistory(): Promise<void> {
+/**
+ * 전체 삭제. 지금 이력에 있던 항목과 `alsoForget`(알림 센터에 있지만 아직 이력에 없는 알림의 eventId)은
+ * 알림 센터 동기화로 되살아나지 않게 id를 기억한다.
+ */
+export function clearHistory(alsoForget: readonly string[] = []): Promise<void> {
   return enqueue(async () => {
     const ids = (await loadHistory()).map((it) => it.eventId);
-    await saveDeletedIds([...(await loadDeletedIds()), ...ids]);
+    await saveDeletedIds([...(await loadDeletedIds()), ...ids, ...alsoForget]);
     try {
       await AsyncStorage.removeItem(KEY);
     } catch {

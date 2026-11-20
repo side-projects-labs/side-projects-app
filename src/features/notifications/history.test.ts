@@ -89,6 +89,13 @@ describe('개별 삭제', () => {
     expect((await loadHistory()).map((i) => i.eventId)).toEqual(['e3']);
   });
 
+  it('기록 지우기 때 넘긴 id(알림 센터에만 있던 알림)도 되살아나지 않는다', async () => {
+    await addHistory([item(1)]);
+    await clearHistory(['e9']);
+    await addHistory([item(9), item(10)]);
+    expect((await loadHistory()).map((i) => i.eventId)).toEqual(['e10']);
+  });
+
   it('지운 id 기록은 상한(200개)을 넘으면 오래된 것부터 버린다', async () => {
     await addHistory(Array.from({ length: 50 }, (_, i) => item(i + 1)));
     for (let i = 1; i <= 50; i++) await removeHistory(`e${i}`);
