@@ -4,7 +4,10 @@ import type * as Notifications from 'expo-notifications';
 import { parseDeploymentEvent, type DeploymentStatus } from './contract';
 
 const KEY = 'deployment-history-v1';
+const DELETED_KEY = 'deleted-event-ids-v1';
 const MAX_ITEMS = 50;
+// 지운 항목이 알림 센터 동기화로 되살아나지 않도록 id를 기억한다. 무한히 쌓이지 않게 최근 것만 남긴다.
+const MAX_DELETED = 200;
 
 /** 기기에서 본 배포 알림 한 건. 서버가 없어 이 기기가 받은 알림만 남는다. */
 export type HistoryItem = {
@@ -67,23 +70,59 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** 같은 eventId는 한 번만 남기고(최신 값 유지), 최근 순으로 최대 50건만 저장한다. */
+async function loadDeletedIds(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(DELETED_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveDeletedIds(ids: string[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(DELETED_KEY, JSON.stringify([...new Set(ids)].slice(-MAX_DELETED)));
+  } catch {
+    // 저장 실패 시 삭제한 항목이 다시 보일 수 있을 뿐이라 무시한다.
+  }
+}
+
+async function saveItems(items: HistoryItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEY, JSON.stringify(items));
+  } catch {
+    // 저장 실패는 이력 기능만 잃을 뿐이라 무시한다.
+  }
+}
+
+/** 같은 eventId는 한 번만 남기고(최신 값 유지), 최근 순으로 최대 50건만 저장한다. 사용자가 지운 항목은 넣지 않는다. */
 export function addHistory(items: HistoryItem[]): Promise<void> {
   if (items.length === 0) return Promise.resolve();
   return enqueue(async () => {
+    const deleted = new Set(await loadDeletedIds());
+    const fresh = items.filter((it) => !deleted.has(it.eventId));
+    if (fresh.length === 0) return;
     const byId = new Map<string, HistoryItem>();
-    for (const it of [...(await loadHistory()), ...items]) byId.set(it.eventId, it);
+    for (const it of [...(await loadHistory()), ...fresh]) byId.set(it.eventId, it);
     const merged = [...byId.values()].sort((a, b) => b.receivedAt - a.receivedAt).slice(0, MAX_ITEMS);
-    try {
-      await AsyncStorage.setItem(KEY, JSON.stringify(merged));
-    } catch {
-      // 저장 실패는 이력 기능만 잃을 뿐이라 무시한다.
-    }
+    await saveItems(merged);
   });
 }
 
+/** 한 건을 지우고, 알림 센터에서 다시 가져와도 되살아나지 않게 id를 기억한다. */
+export function removeHistory(eventId: string): Promise<void> {
+  return enqueue(async () => {
+    await saveItems((await loadHistory()).filter((it) => it.eventId !== eventId));
+    await saveDeletedIds([...(await loadDeletedIds()), eventId]);
+  });
+}
+
+/** 전체 삭제. 지금 이력에 있던 항목은 알림 센터 동기화로 되살아나지 않게 id를 기억한다. */
 export function clearHistory(): Promise<void> {
   return enqueue(async () => {
+    const ids = (await loadHistory()).map((it) => it.eventId);
+    await saveDeletedIds([...(await loadDeletedIds()), ...ids]);
     try {
       await AsyncStorage.removeItem(KEY);
     } catch {
