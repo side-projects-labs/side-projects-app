@@ -7,9 +7,11 @@ import { WebView, type WebViewNavigation } from 'react-native-webview';
 
 import { useCatalog } from '@/features/projects/catalog-context';
 import { loadLastVisit, saveLastVisit } from '@/features/projects/last-project';
-import { isRememberableUrl, resolveResume } from '@/features/projects/resume';
+import { isRememberableUrl, resolveResume, type LastVisit } from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
 import { useTheme } from '@/theme/theme';
+
+const SAVE_DELAY_MS = 800;
 
 export default function ProjectWebViewScreen() {
   const { id, resume } = useLocalSearchParams<{ id: string; resume?: string }>();
@@ -39,6 +41,16 @@ export default function ProjectWebViewScreen() {
     });
   }, [resume, project, projects]);
   const lastSaved = useRef<string | undefined>(undefined);
+  // 잦은 페이지 이동(SPA)마다 저장하지 않도록 잠시 멈췄을 때 한 번만 쓴다. 화면을 떠날 때는 남은 값을 바로 저장한다.
+  const pending = useRef<{ visit: LastVisit; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const flushVisit = useCallback(() => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    void saveLastVisit(p.visit);
+  }, []);
+  useEffect(() => flushVisit, [flushVisit]);
 
   // Android 하드웨어 뒤로가기: 웹 히스토리가 있으면 웹 내부 먼저, 없으면 기본 동작(목록 복귀).
   useEffect(() => {
@@ -59,10 +71,14 @@ export default function ProjectWebViewScreen() {
       // 마지막으로 본 페이지를 기억한다. 로그인·콜백·토큰이 든 주소는 저장하지 않는다.
       if (project && !nav.loading && nav.url !== lastSaved.current && isRememberableUrl(project, nav.url)) {
         lastSaved.current = nav.url;
-        void saveLastVisit({ projectId: project.id, url: nav.url });
+        if (pending.current) clearTimeout(pending.current.timer);
+        pending.current = {
+          visit: { projectId: project.id, url: nav.url },
+          timer: setTimeout(flushVisit, SAVE_DELAY_MS),
+        };
       }
     },
-    [project],
+    [project, flushVisit],
   );
 
   const reload = useCallback(() => {
