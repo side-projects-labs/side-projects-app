@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { registerForDeploymentPush, type RegistrationResult } from '@/features/notifications/setup';
+import { getUpdateInfoRows } from '@/features/updates/current-update';
 import { useTheme } from '@/theme/theme';
 
 const REASONS: Record<Exclude<RegistrationResult, { ok: true }>['reason'], string> = {
@@ -19,6 +20,8 @@ export default function NotificationSettingsScreen() {
   const [result, setResult] = useState<RegistrationResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  // 업데이트 정보는 앱 시작 시 정해져 화면이 다시 그려져도 바뀌지 않는다.
+  const [updateRows] = useState(getUpdateInfoRows);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +91,18 @@ export default function NotificationSettingsScreen() {
           style={[styles.secondary, { borderColor: t.border }]}>
           <Text style={{ color: t.text }}>다시 확인</Text>
         </Pressable>
+
+        <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
+          <Text style={[styles.sectionTitle, { color: t.text }]}>앱 업데이트 정보</Text>
+          {updateRows.map((row) => (
+            <View key={row.label} style={styles.infoRow}>
+              <Text style={[styles.label, { color: t.subtext }]}>{row.label}</Text>
+              <Text selectable style={{ color: t.text, fontSize: 13 }}>
+                {row.value}
+              </Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -100,6 +115,8 @@ const styles = StyleSheet.create({
   desc: { fontSize: 14, lineHeight: 20 },
   card: { padding: 16, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, gap: 10 },
   label: { fontSize: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '600' },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   token: { fontSize: 13, fontFamily: 'Courier' },
   button: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   buttonText: { color: '#fff', fontWeight: '600' },

@@ -23,6 +23,7 @@ JS·에셋만 바뀐 변경은 새 APK 설치 없이 기기에 배포한다. 앱
 - **채널**: 빌드 프로필 이름과 같다(`development`·`preview`·`production`, `eas.json`의 `channel`). 빌드는 자기 채널의 업데이트만 받는다.
 - **runtimeVersion**: `appVersion` 정책이라 `app.json`의 `version`이 같은 빌드에만 업데이트가 간다. 네이티브 코드·권한·플러그인·SDK가 바뀌면 `version`을 올리고 새 빌드를 설치한다. 그렇지 않으면 업데이트를 받은 앱이 네이티브와 맞지 않아 크래시할 수 있다.
 - **배포**: Actions → **Update Android (OTA)** → 채널 선택, 또는 `npx eas-cli update --channel preview --platform android --message "설명"`. 워크플로는 타입·lint·테스트를 통과해야 올린다.
+- **적용 확인**: 목록 화면 🔔 → 하단 **앱 업데이트 정보**에서 실행 중인 코드(빌드 포함본 / OTA), 채널, 런타임 버전, 업데이트 ID(앞 8자)와 게시 시각(UTC)을 본다. OTA를 받은 앱은 '실행 중인 코드'가 *OTA 업데이트*로 바뀌고 ID가 `eas update:list` 결과의 것과 맞는다. 적용 안내 팝업은 없다.
 - **되돌리기**: 문제가 있으면 `eas update:rollback` 또는 이전 커밋으로 다시 업데이트한다.
 - **최초 1회**: OTA를 처음 켠 이번 빌드부터 적용된다. `expo-updates`가 없던 이전 APK는 업데이트를 받지 못하므로 **새 preview 빌드를 한 번 설치**해야 한다.
 - **비용**: Free 플랜은 월간 활성 사용자(업데이트를 내려받은 기기) 1,000명까지다. 본인 기기만 쓰는 동안은 한도에 닿지 않는다. 정책은 바뀔 수 있으니 [Expo 요금 페이지](https://expo.dev/pricing)에서 확인한다.
