@@ -22,6 +22,7 @@ function AppShell() {
     <Stack>
       <Stack.Screen name="index" options={{ title: 'Side Projects' }} />
       <Stack.Screen name="notifications" options={{ title: '배포 알림' }} />
+      <Stack.Screen name="about" options={{ title: '앱 정보' }} />
       <Stack.Screen name="history" options={{ title: '배포 이력' }} />
       <Stack.Screen name="project/[id]" options={{ title: '' }} />
     </Stack>
