@@ -1,0 +1,52 @@
+name: Sync catalog
+
+# 조직 저장소(토픽 side-project-app)와 catalog/projects.json의 차이를 주 1회 점검한다. 설명: docs/catalog.md
+# 차이가 있으면 이슈로 알린다. Actions가 만든 PR은 필수 체크(check)를 실행하지 못해 병합할 수 없으므로,
+# 실제 갱신은 `npm run sync:catalog`로 만들어 일반 PR 절차(리뷰와 CI)로 반영한다.
+on:
+  schedule:
+    - cron: '0 0 * * 1' # 매주 월요일 09:00 KST
+  workflow_dispatch:
+
+concurrency:
+  group: sync-catalog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compare catalog with org repositories
+        id: sync
+        run: |
+          set +e
+          node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+            scripts/sync-catalog.mjs --check --report "$RUNNER_TEMP/report.md"
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 0: 차이 없음, 2: 차이 있음(이슈로 알림), 그 외: 오류로 실패 처리
+          if [ "$code" != "0" ] && [ "$code" != "2" ]; then exit "$code"; fi
+      - name: Open or update issue when drift exists
+        if: steps.sync.outputs.code == '2'
+        run: |
+          title="카탈로그 동기화 필요"
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file "$RUNNER_TEMP/report.md"
+            echo "기존 이슈 #$number 를 갱신했습니다."
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/report.md"
+          fi

@@ -7,6 +7,9 @@ description: 허브 앱 카탈로그(catalog/projects.json)에 사이드 프로�
 
 목록의 원본은 `catalog/projects.json`이고 형식은 `docs/catalog.md`를 따른다. 앱은 master의 raw 파일을 받아 쓰므로 **JSON 변경은 앱 재빌드 없이** 반영된다(단, 앱 코드가 해석하는 새 필드는 새 빌드가 필요하다).
 
+## 조직 저장소 동기화
+`catalog/projects.json`은 조직 저장소(토픽 `side-project-app`)에서 `npm run sync:catalog`로 만들 수 있다. 저장소 `homepage`는 틀릴 수 있어 `catalog/overrides.json`으로 덮어쓰고, 이름·설명·아이콘·`allowedHosts`도 이 파일에서 정한다. 주간 워크플로(`sync-catalog.yml`)가 차이를 이슈로 알린다. 자세한 내용은 `docs/catalog.md`.
+
 ## 프로젝트 추가 순서
 1. **서비스 URL을 실제로 확인한다.** 응답하는 HTTPS 주소만 넣는다. 레포 homepage 값은 오래됐을 수 있다. URL을 모르면 추측하지 말고 확인을 요청한다.
 2. `id`는 레포 이름과 같게 한다(푸시 이벤트의 `projectId`와 매칭, 중복 불가). `repo`는 `side-projects-labs/<레포>`.
