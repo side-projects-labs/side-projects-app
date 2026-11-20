@@ -16,6 +16,17 @@ EAS Build/Submit 기준. 계정 로그인과 자격증명 등록은 사람이 �
 | preview | APK | 내부 테스트 배포 링크 |
 | production | AAB(versionCode 자동 증가) | Play Console 내부 테스트 트랙(draft) |
 
+각 프로필은 같은 이름의 업데이트 채널에 연결된다.
+
+## OTA 업데이트 (EAS Update)
+JS·에셋만 바뀐 변경은 새 APK 설치 없이 기기에 배포한다. 앱은 실행 시 업데이트를 확인해 내려받고, **다음 실행부터** 적용된다.
+- **채널**: 빌드 프로필 이름과 같다(`development`·`preview`·`production`, `eas.json`의 `channel`). 빌드는 자기 채널의 업데이트만 받는다.
+- **runtimeVersion**: `appVersion` 정책이라 `app.json`의 `version`이 같은 빌드에만 업데이트가 간다. 네이티브 코드·권한·플러그인·SDK가 바뀌면 `version`을 올리고 새 빌드를 설치한다. 그렇지 않으면 업데이트를 받은 앱이 네이티브와 맞지 않아 크래시할 수 있다.
+- **배포**: Actions → **Update Android (OTA)** → 채널 선택, 또는 `npx eas-cli update --channel preview --platform android --message "설명"`. 워크플로는 타입·lint·테스트를 통과해야 올린다.
+- **되돌리기**: 문제가 있으면 `eas update:rollback` 또는 이전 커밋으로 다시 업데이트한다.
+- **최초 1회**: OTA를 처음 켠 이번 빌드부터 적용된다. `expo-updates`가 없던 이전 APK는 업데이트를 받지 못하므로 **새 preview 빌드를 한 번 설치**해야 한다.
+- **비용**: Free 플랜은 월간 활성 사용자(업데이트를 내려받은 기기) 1,000명까지다. 본인 기기만 쓰는 동안은 한도에 닿지 않는다. 정책은 바뀔 수 있으니 [Expo 요금 페이지](https://expo.dev/pricing)에서 확인한다.
+
 ## 명령
 - `npm run build:android:dev|preview|prod`
 - `npm run submit:android` (production 빌드를 Play 내부 테스트로 제출)
@@ -24,6 +35,7 @@ EAS Build/Submit 기준. 계정 로그인과 자격증명 등록은 사람이 �
 ## GitHub Actions 릴리즈
 - `.github/workflows/ci.yml`: PR과 master push마다 typecheck, lint, expo-doctor를 실행한다(EAS 빌드는 포함하지 않는다).
 - `.github/workflows/release-android.yml`: `android-v*` 태그 push → production 빌드 + Play 내부 테스트 제출. 수동 실행(workflow_dispatch)으로 preview/production 선택 가능.
+- `.github/workflows/update-android.yml`: 수동 실행으로 OTA 업데이트를 채널에 게시한다(위 OTA 절).
 - `.github/workflows/release-ios.yml`: iOS 전용 별도 워크플로. Apple 설정 전까지 수동 실행 골격이며 iOS 프로필은 `eas.json`에 아직 없다.
 - 필요한 저장소 Secret: `EXPO_TOKEN`(expo.dev 액세스 토큰). 키스토어·Play/Apple 자격증명은 EAS가 보관하며 GitHub에 두지 않는다.
 - 릴리즈 예: `git tag android-v1.0.0 && git push origin android-v1.0.0`

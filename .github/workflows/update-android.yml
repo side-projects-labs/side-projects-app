@@ -1,0 +1,49 @@
+name: Update Android (OTA)
+
+# JS·에셋만 바뀐 변경을 새 APK 없이 기기에 배포한다. 네이티브 변경(패키지 추가, app.json의 네이티브 설정 등)은 포함할 수 없다.
+# 사용법: docs/android-release.md
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 업데이트를 받을 채널(빌드 프로필 이름과 같다)
+        type: choice
+        options: [preview, production]
+        default: preview
+      message:
+        description: 업데이트 설명
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: update-android
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CHANNEL: ${{ inputs.channel }}
+      MESSAGE: ${{ inputs.message }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx expo lint
+      - run: npm test
+      - name: Publish update
+        # 입력은 환경변수로만 셸에 전달한다(인젝션 방지). 메시지가 비면 커밋 SHA를 쓴다.
+        run: eas update --channel "$CHANNEL" --platform android --message "${MESSAGE:-$GITHUB_SHA}" --non-interactive
