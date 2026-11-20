@@ -49,6 +49,9 @@
         "projectId": "6fb0c33d-05bf-4175-a5fd-398e3bea0147"
       }
     },
-    "owner": "yeoncheolss-team"
+    "owner": "yeoncheolss-team",
+    "updates": {
+      "url": "https://u.expo.dev/6fb0c33d-05bf-4175-a5fd-398e3bea0147"
+    }
   }
 }
