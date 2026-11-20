@@ -37,6 +37,22 @@
       "icon": "📈",
       "url": "https://stock.ycseng.com",
       "repo": "side-projects-labs/stock-ai-platform"
+    },
+    {
+      "id": "portfolio2",
+      "name": "Portfolio",
+      "description": "포트폴리오 웹사이트",
+      "icon": "🌐",
+      "url": "https://www.ycseng.com",
+      "repo": "side-projects-labs/portfolio2"
+    },
+    {
+      "id": "portfolio-api",
+      "name": "Portfolio API",
+      "description": "포트폴리오 API 문서(Swagger)",
+      "icon": "🔌",
+      "url": "https://api.ycseng.com/api",
+      "repo": "side-projects-labs/portfolio-api"
     }
   ]
 }
