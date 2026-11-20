@@ -55,7 +55,9 @@
     "submit:android": "eas submit --platform android --profile production",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sync:catalog": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-catalog.mjs --write",
+    "sync:catalog:check": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-catalog.mjs --check"
   },
   "private": true
 }
