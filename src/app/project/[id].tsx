@@ -1,14 +1,28 @@
 import * as Linking from 'expo-linking';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  BackHandler,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 
 import { useCatalog } from '@/features/projects/catalog-context';
 import { loadLastVisit, saveLastVisit } from '@/features/projects/last-project';
-import { isRememberableUrl, resolveResume, type LastVisit } from '@/features/projects/resume';
+import {
+  isRememberableUrl,
+  resolveResume,
+  resolveShareUrl,
+  type LastVisit,
+} from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
+import { WebToolbar } from '@/features/projects/web-toolbar';
 import { useTheme } from '@/theme/theme';
 
 const SAVE_DELAY_MS = 800;
@@ -20,6 +34,7 @@ export default function ProjectWebViewScreen() {
   const t = useTheme();
   const webRef = useRef<WebView<object>>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string | undefined>();
@@ -67,6 +82,7 @@ export default function ProjectWebViewScreen() {
   const onNavChange = useCallback(
     (nav: WebViewNavigation) => {
       setCanGoBack(nav.canGoBack);
+      setCanGoForward(nav.canGoForward);
       setCurrentUrl(nav.url);
       // 마지막으로 본 페이지를 기억한다. 로그인·콜백·토큰이 든 주소는 저장하지 않는다.
       if (project && !nav.loading && nav.url !== lastSaved.current && isRememberableUrl(project, nav.url)) {
@@ -85,6 +101,13 @@ export default function ProjectWebViewScreen() {
     setFailed(false);
     webRef.current?.reload();
   }, []);
+
+  const share = useCallback(() => {
+    if (!project) return;
+    const url = resolveShareUrl(project, currentUrl);
+    // Android는 message, iOS는 url 필드를 쓴다. 둘 다 같은 주소를 넣는다.
+    void Share.share({ message: url, url, title: project.name }).catch(() => undefined);
+  }, [project, currentUrl]);
 
   const openInBrowser = useCallback(() => {
     const target = currentUrl ?? project?.url;
@@ -117,13 +140,6 @@ export default function ProjectWebViewScreen() {
           title: project.name,
           headerRight: () => (
             <View style={styles.actions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="새로고침"
-                hitSlop={8}
-                onPress={reload}>
-                <Text style={[styles.action, { color: t.accent }]}>↻</Text>
-              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="브라우저로 열기"
@@ -183,6 +199,14 @@ export default function ProjectWebViewScreen() {
         setSupportMultipleWindows={false}
         javaScriptCanOpenWindowsAutomatically={false}
         allowFileAccess={false}
+      />
+      <WebToolbar
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onBack={() => webRef.current?.goBack()}
+        onForward={() => webRef.current?.goForward()}
+        onReload={reload}
+        onShare={share}
       />
     </SafeAreaView>
   );
