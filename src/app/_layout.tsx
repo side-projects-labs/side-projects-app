@@ -1,12 +1,13 @@
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View } from 'react-native';
 
 import { registerForDeploymentPush } from '@/features/notifications/setup';
 import { useNotificationRouting } from '@/features/notifications/use-notification-routing';
 import { useRecordDeploymentHistory } from '@/features/notifications/use-record-history';
 import { CatalogProvider } from '@/features/projects/catalog-context';
+import { UpdatePrompt } from '@/features/updates/update-prompt-banner';
 import { DARK, LIGHT } from '@/theme/theme';
 
 function AppShell() {
@@ -19,13 +20,16 @@ function AppShell() {
   }, []);
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: 'Side Projects' }} />
-      <Stack.Screen name="notifications" options={{ title: '배포 알림' }} />
-      <Stack.Screen name="about" options={{ title: '앱 정보' }} />
-      <Stack.Screen name="history" options={{ title: '배포 이력' }} />
-      <Stack.Screen name="project/[id]" options={{ title: '' }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack>
+        <Stack.Screen name="index" options={{ title: 'Side Projects' }} />
+        <Stack.Screen name="notifications" options={{ title: '배포 알림' }} />
+        <Stack.Screen name="about" options={{ title: '앱 정보' }} />
+        <Stack.Screen name="history" options={{ title: '배포 이력' }} />
+        <Stack.Screen name="project/[id]" options={{ title: '' }} />
+      </Stack>
+      <UpdatePrompt />
+    </View>
   );
 }
 
