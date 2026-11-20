@@ -6,6 +6,7 @@ import {
   Alert,
   BackHandler,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -21,8 +22,14 @@ import {
 } from '@/features/projects/last-project';
 import { cookieResetUrls, type ResetScope } from '@/features/projects/login-reset';
 import { resetLogin } from '@/features/projects/login-reset-native';
-import { isRememberableUrl, resolveResume, type LastVisit } from '@/features/projects/resume';
+import {
+  isRememberableUrl,
+  resolveResume,
+  resolveShareUrl,
+  type LastVisit,
+} from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
+import { WebToolbar } from '@/features/projects/web-toolbar';
 import { useTheme } from '@/theme/theme';
 
 const SAVE_DELAY_MS = 800;
@@ -36,6 +43,7 @@ export default function ProjectWebViewScreen() {
   // 값을 바꾸면 WebView를 새로 만들어 메모리 캐시와 열려 있던 페이지를 버린다(로그인 초기화용).
   const [session, setSession] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string | undefined>();
@@ -83,6 +91,7 @@ export default function ProjectWebViewScreen() {
   const onNavChange = useCallback(
     (nav: WebViewNavigation) => {
       setCanGoBack(nav.canGoBack);
+      setCanGoForward(nav.canGoForward);
       setCurrentUrl(nav.url);
       // 마지막으로 본 페이지를 기억한다. 로그인·콜백·토큰이 든 주소는 저장하지 않는다.
       if (project && !nav.loading && nav.url !== lastSaved.current && isRememberableUrl(project, nav.url)) {
@@ -153,6 +162,13 @@ export default function ProjectWebViewScreen() {
     );
   }, [project, runReset]);
 
+  const share = useCallback(() => {
+    if (!project) return;
+    const url = resolveShareUrl(project, currentUrl);
+    // Android는 message, iOS는 url 필드를 쓴다. 둘 다 같은 주소를 넣는다.
+    void Share.share({ message: url, url, title: project.name }).catch(() => undefined);
+  }, [project, currentUrl]);
+
   const openInBrowser = useCallback(() => {
     const target = currentUrl ?? project?.url;
     if (target && isExternalOpenable(target)) void Linking.openURL(target);
@@ -184,13 +200,6 @@ export default function ProjectWebViewScreen() {
           title: project.name,
           headerRight: () => (
             <View style={styles.actions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="새로고침"
-                hitSlop={8}
-                onPress={reload}>
-                <Text style={[styles.action, { color: t.accent }]}>↻</Text>
-              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="로그인 초기화"
@@ -258,6 +267,14 @@ export default function ProjectWebViewScreen() {
         setSupportMultipleWindows={false}
         javaScriptCanOpenWindowsAutomatically={false}
         allowFileAccess={false}
+      />
+      <WebToolbar
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onBack={() => webRef.current?.goBack()}
+        onForward={() => webRef.current?.goForward()}
+        onReload={reload}
+        onShare={share}
       />
     </SafeAreaView>
   );

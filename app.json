@@ -30,7 +30,8 @@
           "imageWidth": 160
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-local-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
