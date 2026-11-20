@@ -1,13 +1,15 @@
 import { Link, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCatalog } from '@/features/projects/catalog-context';
 import type { HealthStatus } from '@/features/projects/health';
 import { loadLastVisit } from '@/features/projects/last-project';
+import { sanitizePinned, sortProjects } from '@/features/projects/pins';
 import { describeVisit, resolveResume, type LastVisit } from '@/features/projects/resume';
 import { useHealth } from '@/features/projects/use-health';
+import { usePins } from '@/features/projects/use-pins';
 import { useTheme } from '@/theme/theme';
 
 export default function ProjectListScreen() {
@@ -16,6 +18,11 @@ export default function ProjectListScreen() {
   const { status, refresh: refreshHealth } = useHealth(projects);
   const [visit, setVisit] = useState<LastVisit | null>(null);
   const resume = resolveResume(projects, visit);
+  const { pinned, toggle, move } = usePins();
+  const [editing, setEditing] = useState(false);
+  // 카탈로그에서 사라진 고정 id는 무시한다. 고정한 프로젝트가 위에, 나머지는 원래 순서로 온다.
+  const pinnedIds = useMemo(() => sanitizePinned(pinned, projects), [pinned, projects]);
+  const sorted = useMemo(() => sortProjects(projects, pinnedIds), [projects, pinnedIds]);
 
   // 프로젝트 화면에서 돌아올 때마다 마지막으로 본 페이지를 다시 읽는다.
   useFocusEffect(
@@ -36,6 +43,15 @@ export default function ProjectListScreen() {
         options={{
           headerRight: () => (
             <View style={styles.headerActions}>
+              {pinnedIds.length > 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={editing ? '순서 변경 완료' : '고정한 프로젝트 순서 변경'}
+                  hitSlop={8}
+                  onPress={() => setEditing((v) => !v)}>
+                  <Text style={{ fontSize: 15, color: t.accent }}>{editing ? '완료' : '순서'}</Text>
+                </Pressable>
+              ) : null}
               <Link href="/about" asChild>
                 <Pressable accessibilityRole="button" accessibilityLabel="앱 정보" hitSlop={8}>
                   <Text style={{ fontSize: 20, color: t.accent }}>ℹ️</Text>
@@ -56,7 +72,7 @@ export default function ProjectListScreen() {
         }}
       />
       <FlatList
-        data={projects}
+        data={sorted}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
         refreshing={refreshing}
@@ -108,6 +124,15 @@ export default function ProjectListScreen() {
                 </View>
                 <Text style={[styles.desc, { color: t.subtext }]}>{item.description}</Text>
               </View>
+              <PinControls
+                name={item.name}
+                pinned={pinnedIds.includes(item.id)}
+                editing={editing}
+                canUp={pinnedIds.indexOf(item.id) > 0}
+                canDown={pinnedIds.indexOf(item.id) < pinnedIds.length - 1}
+                onToggle={() => toggle(item.id)}
+                onMove={(dir) => move(item.id, dir)}
+              />
             </Pressable>
           </Link>
         )}
@@ -120,6 +145,59 @@ export default function ProjectListScreen() {
         }
       />
     </SafeAreaView>
+  );
+}
+
+/** 카드 오른쪽의 고정 버튼. 순서 편집 중에는 고정한 카드에 위·아래 버튼을 보여 준다. */
+function PinControls({
+  name,
+  pinned,
+  editing,
+  canUp,
+  canDown,
+  onToggle,
+  onMove,
+}: {
+  name: string;
+  pinned: boolean;
+  editing: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onToggle: () => void;
+  onMove: (dir: 'up' | 'down') => void;
+}) {
+  const t = useTheme();
+  if (editing && pinned) {
+    return (
+      <View style={styles.pinCol}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${name} 위로 이동`}
+          disabled={!canUp}
+          hitSlop={8}
+          onPress={() => onMove('up')}>
+          <Text style={{ fontSize: 18, color: canUp ? t.accent : t.border }}>▲</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${name} 아래로 이동`}
+          disabled={!canDown}
+          hitSlop={8}
+          onPress={() => onMove('down')}>
+          <Text style={{ fontSize: 18, color: canDown ? t.accent : t.border }}>▼</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${name} ${pinned ? '고정 해제' : '고정'}`}
+      accessibilityState={{ selected: pinned }}
+      hitSlop={10}
+      onPress={onToggle}>
+      <Text style={{ fontSize: 22, color: pinned ? '#F5B301' : t.border }}>{pinned ? '★' : '☆'}</Text>
+    </Pressable>
   );
 }
 
@@ -152,6 +230,7 @@ function HealthChip({ status }: { status: HealthStatus | undefined }) {
 const styles = StyleSheet.create({
   resume: { padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12, gap: 2 },
   resumePath: { fontSize: 12 },
+  pinCol: { gap: 8, alignItems: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chip: {
     flexDirection: 'row',
