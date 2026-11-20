@@ -6,12 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 
 import { useCatalog } from '@/features/projects/catalog-context';
-import { saveLastProjectId } from '@/features/projects/last-project';
+import { loadLastVisit, saveLastVisit } from '@/features/projects/last-project';
+import { isRememberableUrl, resolveResume } from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
 import { useTheme } from '@/theme/theme';
 
 export default function ProjectWebViewScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, resume } = useLocalSearchParams<{ id: string; resume?: string }>();
   const { find } = useCatalog();
   const project = find(id);
   const t = useTheme();
@@ -21,11 +22,25 @@ export default function ProjectWebViewScreen() {
   const [progress, setProgress] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string | undefined>();
 
-  // 등록된 프로젝트를 열면 마지막 프로젝트로 기억한다.
-  const projectId = project?.id;
+  // "이어서 보기"로 들어오면 저장된 페이지에서 시작한다. 저장값은 다시 검증하고, 실패하면 첫 주소를 쓴다.
+  // 목록에서 직접 연 경우(resume 없음)와 알림으로 연 경우는 항상 첫 주소다.
+  const [startUrl, setStartUrl] = useState<string | undefined>(
+    resume === '1' ? undefined : project?.url,
+  );
+  const { projects } = useCatalog();
   useEffect(() => {
-    if (projectId) void saveLastProjectId(projectId);
-  }, [projectId]);
+    if (resume !== '1' || !project) return;
+    let alive = true;
+    void loadLastVisit().then((visit) => {
+      if (!alive) return;
+      const r = resolveResume(projects, visit);
+      setStartUrl(r && r.project.id === project.id ? r.url : project.url);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [resume, project, projects]);
+  const lastSaved = useRef<string | undefined>(undefined);
 
   // Android 하드웨어 뒤로가기: 웹 히스토리가 있으면 웹 내부 먼저, 없으면 기본 동작(목록 복귀).
   useEffect(() => {
@@ -39,10 +54,18 @@ export default function ProjectWebViewScreen() {
     return () => sub.remove();
   }, [canGoBack]);
 
-  const onNavChange = useCallback((nav: WebViewNavigation) => {
-    setCanGoBack(nav.canGoBack);
-    setCurrentUrl(nav.url);
-  }, []);
+  const onNavChange = useCallback(
+    (nav: WebViewNavigation) => {
+      setCanGoBack(nav.canGoBack);
+      setCurrentUrl(nav.url);
+      // 마지막으로 본 페이지를 기억한다. 로그인·콜백·토큰이 든 주소는 저장하지 않는다.
+      if (project && !nav.loading && nav.url !== lastSaved.current && isRememberableUrl(project, nav.url)) {
+        lastSaved.current = nav.url;
+        void saveLastVisit({ projectId: project.id, url: nav.url });
+      }
+    },
+    [project],
+  );
 
   const reload = useCallback(() => {
     setFailed(false);
@@ -58,6 +81,15 @@ export default function ProjectWebViewScreen() {
     return (
       <View style={[styles.center, { backgroundColor: t.background }]}>
         <Text style={{ color: t.text }}>등록되지 않은 프로젝트입니다.</Text>
+      </View>
+    );
+  }
+
+  // 이어서 보기 주소를 읽는 동안은 WebView를 만들지 않는다(첫 주소가 먼저 열리는 깜빡임 방지).
+  if (!startUrl) {
+    return (
+      <View style={[styles.center, { backgroundColor: t.background }]}>
+        <ActivityIndicator />
       </View>
     );
   }
@@ -111,7 +143,7 @@ export default function ProjectWebViewScreen() {
       <WebView
         ref={webRef}
         style={[failed ? styles.hidden : styles.screen, { backgroundColor: t.background }]}
-        source={{ uri: project.url }}
+        source={{ uri: startUrl }}
         startInLoadingState
         renderLoading={() => (
           <View style={[styles.center, styles.fill, { backgroundColor: t.background }]}>
