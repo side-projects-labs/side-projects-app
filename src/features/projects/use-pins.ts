@@ -17,29 +17,32 @@ async function save(ids: PinnedIds): Promise<void> {
 /** 고정한 프로젝트 id와 고정·해제·순서 변경. 변경은 즉시 화면에 반영하고 기기에 저장한다. */
 export function usePins() {
   const [pinned, setPinned] = useState<PinnedIds>([]);
+  // 저장된 값을 읽기 전에 빈 목록으로 덮어쓰지 않도록, 읽기가 끝난 뒤에만 저장한다.
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     let alive = true;
     AsyncStorage.getItem(KEY)
-      .then((raw) => alive && setPinned(parsePinned(raw)))
-      .catch(() => undefined);
+      .then((raw) => {
+        if (!alive) return;
+        setPinned(parsePinned(raw));
+        setHydrated(true);
+      })
+      .catch(() => alive && setHydrated(true));
     return () => {
       alive = false;
     };
   }, []);
 
-  const update = useCallback((fn: (prev: PinnedIds) => PinnedIds) => {
-    setPinned((prev) => {
-      const next = fn(prev);
-      void save(next);
-      return next;
-    });
-  }, []);
+  // 저장은 부수 효과이므로 상태 갱신 함수 밖에서 한다(갱신 함수는 순수하게 유지).
+  useEffect(() => {
+    if (hydrated) void save(pinned);
+  }, [hydrated, pinned]);
 
-  const toggle = useCallback((id: string) => update((prev) => togglePin(prev, id)), [update]);
+  const toggle = useCallback((id: string) => setPinned((prev) => togglePin(prev, id)), []);
   const move = useCallback(
-    (id: string, dir: 'up' | 'down') => update((prev) => movePinned(prev, id, dir)),
-    [update],
+    (id: string, dir: 'up' | 'down') => setPinned((prev) => movePinned(prev, id, dir)),
+    [],
   );
 
   return { pinned, toggle, move };
