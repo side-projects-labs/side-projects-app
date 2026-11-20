@@ -35,6 +35,12 @@ JS·에셋만 바뀐 변경은 새 APK 설치 없이 기기에 배포한다. 앱
 - 네이티브 모듈(`expo-local-authentication`)이 들어 있어 **새 APK가 필요**하다. `app.json`의 `version`을 `1.1.0`으로 올려 runtime을 분리했고, 따라서 이전 APK(`1.0.0`)는 이 코드를 OTA로 받지 않는다. 이전 APK에는 `1.0.0` OTA를 계속 올릴 수 있다.
 - 한계: 안드로이드 최근 앱 목록에 보이는 화면 미리보기는 가리지 않는다.
 
+## 로그인 초기화
+프로젝트 화면 헤더의 ⏻를 누르고 확인하면 그 프로젝트의 로그인 쿠키와 WebView 캐시를 지우고 처음 화면으로 돌아간다. 이어서 보기에 저장된 그 프로젝트의 페이지도 지운다.
+- 범위를 고른다. **서비스만**은 서비스 호스트의 쿠키만 지운다. **로그인 호스트까지**는 카탈로그 `allowedHosts`(예: github.com)의 쿠키도 지운다(`allowedHosts`가 없는 프로젝트는 서비스만 보인다). 쿠키 저장소는 모든 프로젝트가 공유하므로, 로그인 호스트까지 지우면 같은 호스트를 쓰는 다른 프로젝트의 로그인도 풀릴 수 있다.
+- 네이티브 쿠키 모듈(`@preeternal/react-native-cookie-manager`, New Architecture 전용)이 들어 있어 **새 APK가 필요**하다. 생체 잠금(#36)과 같은 runtime `1.1.0`으로 묶어 배포한다.
+- 일부 쿠키를 지우지 못하면 안내가 뜬다. 로그인이 계속 풀리지 않으면 앱을 다시 설치한다.
+
 ## 명령
 - `npm run build:android:dev|preview|prod`
 - `npm run submit:android` (production 빌드를 Play 내부 테스트로 제출)
