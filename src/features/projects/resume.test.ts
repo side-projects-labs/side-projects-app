@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ProjectEntry } from './catalog';
-import { describeVisit, isRememberableUrl, parseLastVisit, resolveResume } from './resume';
+import {
+  describeVisit,
+  isRememberableUrl,
+  parseLastVisit,
+  resolveResume,
+  resolveShareUrl,
+} from './resume';
 
 const project: ProjectEntry = {
   id: 'portfolio-admin',
@@ -84,5 +90,21 @@ describe('describeVisit', () => {
   it('루트는 /로, 긴 값은 줄인다', () => {
     expect(describeVisit('https://admin.ycseng.com')).toBe('/');
     expect(describeVisit(`https://admin.ycseng.com/${'a'.repeat(100)}`).length).toBeLessThanOrEqual(40);
+  });
+});
+
+describe('resolveShareUrl', () => {
+  it('저장 가능한 현재 페이지는 그대로 공유한다', () => {
+    expect(resolveShareUrl(project, 'https://admin.ycseng.com/jobs?page=2')).toBe(
+      'https://admin.ycseng.com/jobs?page=2',
+    );
+  });
+  it('로그인·콜백 경로나 인증 쿼리가 든 주소는 서비스 첫 주소로 대체한다', () => {
+    expect(resolveShareUrl(project, 'https://admin.ycseng.com/login')).toBe(project.url);
+    expect(resolveShareUrl(project, 'https://admin.ycseng.com/x?token=abc')).toBe(project.url);
+  });
+  it('다른 호스트거나 주소가 없으면 서비스 첫 주소를 공유한다', () => {
+    expect(resolveShareUrl(project, 'https://github.com/login')).toBe(project.url);
+    expect(resolveShareUrl(project, undefined)).toBe(project.url);
   });
 });
