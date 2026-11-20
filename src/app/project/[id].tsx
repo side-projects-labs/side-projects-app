@@ -1,12 +1,26 @@
 import * as Linking from 'expo-linking';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 
 import { useCatalog } from '@/features/projects/catalog-context';
-import { loadLastVisit, saveLastVisit } from '@/features/projects/last-project';
+import {
+  clearLastVisitFor,
+  loadLastVisit,
+  saveLastVisit,
+} from '@/features/projects/last-project';
+import { cookieResetUrls } from '@/features/projects/login-reset';
+import { resetLogin } from '@/features/projects/login-reset-native';
 import { isRememberableUrl, resolveResume, type LastVisit } from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
 import { useTheme } from '@/theme/theme';
@@ -19,6 +33,8 @@ export default function ProjectWebViewScreen() {
   const project = find(id);
   const t = useTheme();
   const webRef = useRef<WebView<object>>(null);
+  // 값을 바꾸면 WebView를 새로 만들어 메모리 캐시와 열려 있던 페이지를 버린다(로그인 초기화용).
+  const [session, setSession] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -86,6 +102,37 @@ export default function ProjectWebViewScreen() {
     webRef.current?.reload();
   }, []);
 
+  const confirmResetLogin = useCallback(() => {
+    if (!project) return;
+    const hosts = cookieResetUrls(project).map((u) => new URL(u).hostname);
+    Alert.alert(
+      '로그인 초기화',
+      `${project.name}의 로그인 정보(쿠키)를 지우고 처음 화면으로 돌아갑니다.\n\n대상: ${hosts.join(', ')}\n같은 주소를 쓰는 다른 프로젝트의 로그인도 함께 풀릴 수 있습니다.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '초기화',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              webRef.current?.clearCache?.(true);
+              const result = await resetLogin(project);
+              await clearLastVisitFor(project.id);
+              lastSaved.current = undefined;
+              setFailed(false);
+              setCurrentUrl(undefined);
+              setStartUrl(project.url);
+              setSession((n) => n + 1);
+              if (result.failed > 0) {
+                Alert.alert('일부 항목을 지우지 못했습니다', '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.');
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [project]);
+
   const openInBrowser = useCallback(() => {
     const target = currentUrl ?? project?.url;
     if (target && isExternalOpenable(target)) void Linking.openURL(target);
@@ -126,6 +173,13 @@ export default function ProjectWebViewScreen() {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="로그인 초기화"
+                hitSlop={8}
+                onPress={confirmResetLogin}>
+                <Text style={[styles.action, { color: t.accent }]}>⏻</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel="브라우저로 열기"
                 hitSlop={8}
                 onPress={openInBrowser}>
@@ -155,6 +209,7 @@ export default function ProjectWebViewScreen() {
         </View>
       ) : null}
       <WebView
+        key={session}
         ref={webRef}
         style={[failed ? styles.hidden : styles.screen, { backgroundColor: t.background }]}
         source={{ uri: startUrl }}

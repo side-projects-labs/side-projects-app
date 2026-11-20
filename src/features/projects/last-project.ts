@@ -20,3 +20,13 @@ export async function saveLastVisit(visit: LastVisit): Promise<void> {
     // 저장 실패는 "이어서 보기"만 잃을 뿐이라 무시한다.
   }
 }
+
+/** 저장된 마지막 페이지가 이 프로젝트의 것이면 지운다(로그인 초기화 뒤 옛 주소로 열리지 않게). */
+export async function clearLastVisitFor(projectId: string): Promise<void> {
+  try {
+    const visit = await loadLastVisit();
+    if (visit?.projectId === projectId) await AsyncStorage.removeItem(KEY);
+  } catch {
+    // 무시
+  }
+}
