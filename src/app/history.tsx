@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -164,7 +165,7 @@ export default function HistoryScreen() {
                     accessibilityLabel={`${project?.name ?? item.projectId} 알림 기록 삭제`}
                     hitSlop={10}
                     onPress={() => void remove(item.eventId)}>
-                    <Text style={{ color: t.subtext, fontSize: 14 }}>✕</Text>
+                    <Ionicons name="close" size={18} color={t.subtext} />
                   </Pressable>
                 </View>
               </View>

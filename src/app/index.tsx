@@ -55,17 +55,17 @@ export default function ProjectListScreen() {
               ) : null}
               <Link href="/about" asChild>
                 <Pressable accessibilityRole="button" accessibilityLabel="앱 정보" hitSlop={8}>
-                  <Text style={{ fontSize: 20, color: t.accent }}>ℹ️</Text>
+                  <Ionicons name="information-circle-outline" size={HEADER_ICON_SIZE} color={t.accent} />
                 </Pressable>
               </Link>
               <Link href="/history" asChild>
                 <Pressable accessibilityRole="button" accessibilityLabel="배포 이력" hitSlop={8}>
-                  <Text style={{ fontSize: 20, color: t.accent }}>🕘</Text>
+                  <Ionicons name="time-outline" size={HEADER_ICON_SIZE} color={t.accent} />
                 </Pressable>
               </Link>
               <Link href="/notifications" asChild>
                 <Pressable accessibilityRole="button" accessibilityLabel="배포 알림 설정" hitSlop={8}>
-                  <Text style={{ fontSize: 20, color: t.accent }}>🔔</Text>
+                  <Ionicons name="notifications-outline" size={HEADER_ICON_SIZE} color={t.accent} />
                 </Pressable>
               </Link>
             </View>
@@ -154,6 +154,7 @@ export default function ProjectListScreen() {
 }
 
 const PIN_COLOR = '#F5B301';
+const HEADER_ICON_SIZE = 24;
 
 /** 제목 왼쪽의 고정(즐겨찾기) 별. 고정 전에도 눈에 띄도록 윤곽선을 보조 글자색으로 그린다. */
 function PinStar({
