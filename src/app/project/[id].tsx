@@ -19,7 +19,7 @@ import {
   loadLastVisit,
   saveLastVisit,
 } from '@/features/projects/last-project';
-import { cookieResetUrls } from '@/features/projects/login-reset';
+import { cookieResetUrls, type ResetScope } from '@/features/projects/login-reset';
 import { resetLogin } from '@/features/projects/login-reset-native';
 import { isRememberableUrl, resolveResume, type LastVisit } from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
@@ -102,36 +102,56 @@ export default function ProjectWebViewScreen() {
     webRef.current?.reload();
   }, []);
 
+  const runReset = useCallback(
+    async (scope: ResetScope) => {
+      if (!project) return;
+      webRef.current?.clearCache?.(true);
+      const result = await resetLogin(project, scope);
+      await clearLastVisitFor(project.id);
+      lastSaved.current = undefined;
+      setFailed(false);
+      setCurrentUrl(undefined);
+      setStartUrl(project.url);
+      setSession((n) => n + 1);
+      if (result.failed > 0) {
+        Alert.alert(
+          '일부 항목을 지우지 못했습니다',
+          '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.',
+        );
+      }
+    },
+    [project],
+  );
+
   const confirmResetLogin = useCallback(() => {
     if (!project) return;
-    const hosts = cookieResetUrls(project).map((u) => new URL(u).hostname);
+    const serviceHost = new URL(project.url).hostname;
+    const loginHosts = cookieResetUrls(project, 'login')
+      .map((u) => new URL(u).hostname)
+      .filter((h) => h !== serviceHost);
+    const hasLoginHosts = loginHosts.length > 0;
     Alert.alert(
       '로그인 초기화',
-      `${project.name}의 로그인 정보(쿠키)를 지우고 처음 화면으로 돌아갑니다.\n\n대상: ${hosts.join(', ')}\n같은 주소를 쓰는 다른 프로젝트의 로그인도 함께 풀릴 수 있습니다.`,
+      `${project.name}의 로그인 정보(쿠키)를 지우고 처음 화면으로 돌아갑니다.\n\n` +
+        `• 서비스만: ${serviceHost}\n` +
+        (hasLoginHosts
+          ? `• 로그인 호스트까지: ${loginHosts.join(', ')} 도 지웁니다. 같은 호스트를 쓰는 다른 프로젝트의 로그인도 풀릴 수 있습니다.`
+          : ''),
       [
         { text: '취소', style: 'cancel' },
-        {
-          text: '초기화',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              webRef.current?.clearCache?.(true);
-              const result = await resetLogin(project);
-              await clearLastVisitFor(project.id);
-              lastSaved.current = undefined;
-              setFailed(false);
-              setCurrentUrl(undefined);
-              setStartUrl(project.url);
-              setSession((n) => n + 1);
-              if (result.failed > 0) {
-                Alert.alert('일부 항목을 지우지 못했습니다', '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.');
-              }
-            })();
-          },
-        },
+        { text: '서비스만', onPress: () => void runReset('service') },
+        ...(hasLoginHosts
+          ? [
+              {
+                text: '로그인 호스트까지',
+                style: 'destructive' as const,
+                onPress: () => void runReset('login'),
+              },
+            ]
+          : []),
       ],
     );
-  }, [project]);
+  }, [project, runReset]);
 
   const openInBrowser = useCallback(() => {
     const target = currentUrl ?? project?.url;
