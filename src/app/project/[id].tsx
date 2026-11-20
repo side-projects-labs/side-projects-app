@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 
 import { useCatalog } from '@/features/projects/catalog-context';
+import { saveLastProjectId } from '@/features/projects/last-project';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
 import { useTheme } from '@/theme/theme';
 
@@ -19,6 +20,12 @@ export default function ProjectWebViewScreen() {
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string | undefined>();
+
+  // 등록된 프로젝트를 열면 마지막 프로젝트로 기억한다.
+  const projectId = project?.id;
+  useEffect(() => {
+    if (projectId) void saveLastProjectId(projectId);
+  }, [projectId]);
 
   // Android 하드웨어 뒤로가기: 웹 히스토리가 있으면 웹 내부 먼저, 없으면 기본 동작(목록 복귀).
   useEffect(() => {

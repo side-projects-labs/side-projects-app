@@ -8,6 +8,10 @@
 3. 원격(`raw.githubusercontent.com/.../master/catalog/projects.json`)을 5초 제한으로 받아 검증을 통과하면 덮어쓰고 캐시한다. 실패하면 앞 단계 값을 유지한다.
 4. 목록 화면을 아래로 당기면 다시 받는다. raw 응답은 CDN에 수 분간 캐시될 수 있다.
 
+## 목록 화면 부가 기능
+- **상태 표시**: 앱이 각 서비스 `url`에 GET 요청(5초 제한)을 보내 5xx가 아니면 '정상', 오류·시간 초과·5xx면 '응답 없음'으로 표시한다. 401·리다이렉트도 정상으로 본다. 목록을 당기면 다시 확인한다.
+- **이어서 보기**: 마지막으로 연 프로젝트 id를 기기에 저장(`last-project-v1`)하고, 목록 상단에 바로 가기를 보여 준다. 카탈로그에서 사라진 id는 무시한다.
+
 ## 형식 (version 1)
 `{ "version": 1, "projects": [{ "id", "name", "description", "icon", "url", "repo?", "allowedHosts?" }] }`
 
