@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/theme/theme';
@@ -11,9 +12,7 @@ export function LockScreen() {
   if (!locked) return null;
   return (
     <View style={[styles.cover, { backgroundColor: t.background }]} accessibilityViewIsModal>
-      <Text style={styles.icon} accessible={false}>
-        🔒
-      </Text>
+      <Ionicons name="lock-closed" size={48} color={t.subtext} accessible={false} />
       <Text style={[styles.title, { color: t.text }]}>잠겨 있습니다</Text>
       {ready ? (
         <Pressable
@@ -40,7 +39,6 @@ const styles = StyleSheet.create({
     zIndex: 100,
     elevation: 100,
   },
-  icon: { fontSize: 48 },
   title: { fontSize: 18, fontWeight: '600' },
   button: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
