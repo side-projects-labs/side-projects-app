@@ -112,6 +112,11 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
           return null;
         }
         if (outcome === 'disable') {
+          // 잠금 수단이 사라진 상태에서 끄려는 경우는 인증 없이 끌 수 있어야 한다(켠 채로 갇히지 않게).
+          if (!next) {
+            applyEnabled(false);
+            return null;
+          }
           return '기기에 화면 잠금(지문·얼굴·PIN·패턴)이 설정되어 있지 않아 사용할 수 없습니다.';
         }
         return '인증이 완료되지 않아 설정을 바꾸지 않았습니다.';
