@@ -36,6 +36,11 @@ export default function ProjectListScreen() {
         options={{
           headerRight: () => (
             <View style={styles.headerActions}>
+              <Link href="/about" asChild>
+                <Pressable accessibilityRole="button" accessibilityLabel="앱 정보" hitSlop={8}>
+                  <Text style={{ fontSize: 20, color: t.accent }}>ℹ️</Text>
+                </Pressable>
+              </Link>
               <Link href="/history" asChild>
                 <Pressable accessibilityRole="button" accessibilityLabel="배포 이력" hitSlop={8}>
                   <Text style={{ fontSize: 20, color: t.accent }}>🕘</Text>
