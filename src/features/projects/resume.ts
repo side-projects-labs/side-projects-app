@@ -66,3 +66,8 @@ export function describeVisit(url: string): string {
   const label = u ? `${u.pathname}${u.search}` || '/' : '/';
   return label.length > MAX_LABEL_LENGTH ? `${label.slice(0, MAX_LABEL_LENGTH - 1)}…` : label;
 }
+
+/** 공유할 주소. 로그인·콜백 경로나 인증 정보가 든 주소는 노출하지 않도록 서비스 첫 주소로 대체한다. */
+export function resolveShareUrl(project: ProjectEntry, currentUrl: string | undefined): string {
+  return currentUrl && isRememberableUrl(project, currentUrl) ? currentUrl : project.url;
+}
