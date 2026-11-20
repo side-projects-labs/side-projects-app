@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Link, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -117,6 +118,11 @@ export default function ProjectListScreen() {
               </Text>
               <View style={styles.body}>
                 <View style={styles.titleRow}>
+                  <PinStar
+                    name={item.name}
+                    pinned={pinnedIds.includes(item.id)}
+                    onToggle={() => toggle(item.id)}
+                  />
                   <Text style={[styles.name, { color: t.text }]} numberOfLines={1}>
                     {item.name}
                   </Text>
@@ -124,15 +130,14 @@ export default function ProjectListScreen() {
                 </View>
                 <Text style={[styles.desc, { color: t.subtext }]}>{item.description}</Text>
               </View>
-              <PinControls
-                name={item.name}
-                pinned={pinnedIds.includes(item.id)}
-                editing={editing}
-                canUp={pinnedIds.indexOf(item.id) > 0}
-                canDown={pinnedIds.indexOf(item.id) < pinnedIds.length - 1}
-                onToggle={() => toggle(item.id)}
-                onMove={(dir) => move(item.id, dir)}
-              />
+              {editing && pinnedIds.includes(item.id) ? (
+                <ReorderControls
+                  name={item.name}
+                  canUp={pinnedIds.indexOf(item.id) > 0}
+                  canDown={pinnedIds.indexOf(item.id) < pinnedIds.length - 1}
+                  onMove={(dir) => move(item.id, dir)}
+                />
+              ) : null}
             </Pressable>
           </Link>
         )}
@@ -148,47 +153,19 @@ export default function ProjectListScreen() {
   );
 }
 
-/** 카드 오른쪽의 고정 버튼. 순서 편집 중에는 고정한 카드에 위·아래 버튼을 보여 준다. */
-function PinControls({
+const PIN_COLOR = '#F5B301';
+
+/** 제목 왼쪽의 고정(즐겨찾기) 별. 고정 전에도 눈에 띄도록 윤곽선을 보조 글자색으로 그린다. */
+function PinStar({
   name,
   pinned,
-  editing,
-  canUp,
-  canDown,
   onToggle,
-  onMove,
 }: {
   name: string;
   pinned: boolean;
-  editing: boolean;
-  canUp: boolean;
-  canDown: boolean;
   onToggle: () => void;
-  onMove: (dir: 'up' | 'down') => void;
 }) {
   const t = useTheme();
-  if (editing && pinned) {
-    return (
-      <View style={styles.pinCol}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${name} 위로 이동`}
-          disabled={!canUp}
-          hitSlop={8}
-          onPress={() => onMove('up')}>
-          <Text style={{ fontSize: 18, color: canUp ? t.accent : t.border }}>▲</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${name} 아래로 이동`}
-          disabled={!canDown}
-          hitSlop={8}
-          onPress={() => onMove('down')}>
-          <Text style={{ fontSize: 18, color: canDown ? t.accent : t.border }}>▼</Text>
-        </Pressable>
-      </View>
-    );
-  }
   return (
     <Pressable
       accessibilityRole="button"
@@ -196,8 +173,47 @@ function PinControls({
       accessibilityState={{ selected: pinned }}
       hitSlop={10}
       onPress={onToggle}>
-      <Text style={{ fontSize: 22, color: pinned ? '#F5B301' : t.border }}>{pinned ? '★' : '☆'}</Text>
+      <Ionicons
+        name={pinned ? 'star' : 'star-outline'}
+        size={24}
+        color={pinned ? PIN_COLOR : t.subtext}
+      />
     </Pressable>
+  );
+}
+
+/** 순서 편집 중 고정한 카드의 위·아래 이동 버튼. */
+function ReorderControls({
+  name,
+  canUp,
+  canDown,
+  onMove,
+}: {
+  name: string;
+  canUp: boolean;
+  canDown: boolean;
+  onMove: (dir: 'up' | 'down') => void;
+}) {
+  const t = useTheme();
+  return (
+    <View style={styles.pinCol}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${name} 위로 이동`}
+        disabled={!canUp}
+        hitSlop={8}
+        onPress={() => onMove('up')}>
+        <Ionicons name="chevron-up" size={24} color={canUp ? t.accent : t.border} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${name} 아래로 이동`}
+        disabled={!canDown}
+        hitSlop={8}
+        onPress={() => onMove('down')}>
+        <Ionicons name="chevron-down" size={24} color={canDown ? t.accent : t.border} />
+      </Pressable>
+    </View>
   );
 }
 

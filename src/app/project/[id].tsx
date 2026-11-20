@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,6 +34,7 @@ import { WebToolbar } from '@/features/projects/web-toolbar';
 import { useTheme } from '@/theme/theme';
 
 const SAVE_DELAY_MS = 800;
+const ACTION_ICON_SIZE = 24;
 
 export default function ProjectWebViewScreen() {
   const { id, resume } = useLocalSearchParams<{ id: string; resume?: string }>();
@@ -205,14 +207,14 @@ export default function ProjectWebViewScreen() {
                 accessibilityLabel="로그인 초기화"
                 hitSlop={8}
                 onPress={confirmResetLogin}>
-                <Text style={[styles.action, { color: t.accent }]}>⏻</Text>
+                <Ionicons name="log-out-outline" size={ACTION_ICON_SIZE} color={t.accent} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="브라우저로 열기"
                 hitSlop={8}
                 onPress={openInBrowser}>
-                <Text style={[styles.action, { color: t.accent }]}>↗</Text>
+                <Ionicons name="open-outline" size={ACTION_ICON_SIZE} color={t.accent} />
               </Pressable>
             </View>
           ),
@@ -295,7 +297,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   actions: { flexDirection: 'row', gap: 16, paddingRight: 4 },
-  action: { fontSize: 22 },
   progressTrack: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 1 },
   progressBar: { height: 2 },
 });
