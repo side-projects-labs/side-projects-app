@@ -28,17 +28,15 @@ export default function ProjectWebViewScreen() {
     resume === '1' ? undefined : project?.url,
   );
   const { projects } = useCatalog();
+  // 시작 주소는 한 번만 정한다. 카탈로그가 캐시→원격으로 갱신돼도 다시 계산하면 보던 페이지가 다시 로드된다.
+  const resolved = useRef(false);
   useEffect(() => {
-    if (resume !== '1' || !project) return;
-    let alive = true;
+    if (resume !== '1' || !project || resolved.current) return;
+    resolved.current = true;
     void loadLastVisit().then((visit) => {
-      if (!alive) return;
       const r = resolveResume(projects, visit);
       setStartUrl(r && r.project.id === project.id ? r.url : project.url);
     });
-    return () => {
-      alive = false;
-    };
   }, [resume, project, projects]);
   const lastSaved = useRef<string | undefined>(undefined);
 
