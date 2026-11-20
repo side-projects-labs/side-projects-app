@@ -6,6 +6,8 @@ import { useColorScheme, View } from 'react-native';
 import { registerForDeploymentPush } from '@/features/notifications/setup';
 import { useNotificationRouting } from '@/features/notifications/use-notification-routing';
 import { useRecordDeploymentHistory } from '@/features/notifications/use-record-history';
+import { AppLockProvider } from '@/features/app-lock/app-lock-context';
+import { LockScreen } from '@/features/app-lock/lock-screen';
 import { CatalogProvider } from '@/features/projects/catalog-context';
 import { UpdatePrompt } from '@/features/updates/update-prompt-banner';
 import { DARK, LIGHT } from '@/theme/theme';
@@ -29,6 +31,7 @@ function AppShell() {
         <Stack.Screen name="project/[id]" options={{ title: '' }} />
       </Stack>
       <UpdatePrompt />
+      <LockScreen />
     </View>
   );
 }
@@ -52,9 +55,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={theme}>
       <StatusBar style="auto" />
-      <CatalogProvider>
-        <AppShell />
-      </CatalogProvider>
+      <AppLockProvider>
+        <CatalogProvider>
+          <AppShell />
+        </CatalogProvider>
+      </AppLockProvider>
     </ThemeProvider>
   );
 }

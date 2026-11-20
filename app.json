@@ -2,7 +2,7 @@
   "expo": {
     "name": "Side Projects",
     "slug": "side-projects-app",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sideprojectsapp",
@@ -30,7 +30,8 @@
           "imageWidth": 160
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-local-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
