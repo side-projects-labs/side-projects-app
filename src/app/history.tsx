@@ -56,7 +56,7 @@ function FilterChip({
         styles.chip,
         { borderColor: selected ? t.accent : t.border, backgroundColor: selected ? t.accent : 'transparent' },
       ]}>
-      <Text style={{ color: selected ? '#fff' : t.text, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: selected ? t.onAccent : t.text, fontSize: 13 }}>{label}</Text>
     </Pressable>
   );
 }

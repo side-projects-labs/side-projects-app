@@ -19,7 +19,7 @@ export function LockScreen() {
           accessibilityRole="button"
           onPress={() => void unlock()}
           style={[styles.button, { backgroundColor: t.accent }]}>
-          <Text style={styles.buttonText}>잠금 해제</Text>
+          <Text style={[styles.buttonText, { color: t.onAccent }]}>잠금 해제</Text>
         </Pressable>
       ) : null}
     </View>
@@ -41,5 +41,5 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: '600' },
   button: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  buttonText: { fontWeight: '600', fontSize: 15 },
 });

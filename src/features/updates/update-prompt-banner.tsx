@@ -58,7 +58,7 @@ export function UpdatePrompt() {
           disabled={restarting}
           onPress={() => void restart()}
           style={[styles.button, { backgroundColor: t.accent }, restarting && styles.disabled]}>
-          <Text style={styles.buttonText}>{restarting ? '다시 시작 중…' : '다시 시작'}</Text>
+          <Text style={[styles.buttonText, { color: t.onAccent }]}>{restarting ? '다시 시작 중…' : '다시 시작'}</Text>
         </Pressable>
       </View>
     </View>
@@ -80,5 +80,5 @@ const styles = StyleSheet.create({
   text: { flex: 1, fontSize: 14, fontWeight: '600' },
   button: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   disabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  buttonText: { fontWeight: '600', fontSize: 13 },
 });
