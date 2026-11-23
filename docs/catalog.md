@@ -37,6 +37,7 @@ npm run sync:catalog         # catalog/projects.json 갱신 → 일반 PR로 반
 `{ "version": 1, "projects": [{ "id", "name", "description", "icon", "url", "repo?", "allowedHosts?" }] }`
 
 - `id`: 레포 이름과 동일하게 쓴다. 푸시 이벤트의 `projectId`와 매칭된다. 중복 불가.
+- `repo`(선택): `소유자/이름` 형식. 있으면 앱이 이 공개 저장소의 최근 Production 배포를 읽어 배포 이력을 보충한다(`docs/deployment-notifications.md`). 형식이 틀리면 무시한다.
 - `url`: 자격증명이 없는 **HTTPS**만 허용한다. 실제 응답을 확인한 주소만 넣는다. 레포 homepage 값은 오래될 수 있다.
 - 검증에 실패한 항목은 건너뛰고, 쓸 수 있는 항목이 하나도 없으면 원격본 전체를 버린다. 최대 50개.
 
