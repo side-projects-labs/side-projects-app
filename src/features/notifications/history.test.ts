@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { addHistory, clearHistory, loadHistory, removeHistory, type HistoryItem } from './history';
+import { MAX_DELETED, addHistory, clearHistory, loadHistory, removeHistory, type HistoryItem } from './history';
 
 // vi.mock 은 import 보다 먼저 실행되도록 vitest 가 끌어올린다.
 const store = new Map<string, string>();
@@ -96,19 +96,36 @@ describe('개별 삭제', () => {
     expect((await loadHistory()).map((i) => i.eventId)).toEqual(['e10']);
   });
 
-  it('지운 id 기록은 상한(200개)을 넘으면 오래된 것부터 버린다', async () => {
+  it('지운 id 기록은 상한을 넘으면 오래된 것부터 버린다', async () => {
+    const second = MAX_DELETED - 40; // 처음 50건과 합치면 상한을 10건 넘는다
     await addHistory(Array.from({ length: 50 }, (_, i) => item(i + 1)));
     for (let i = 1; i <= 50; i++) await removeHistory(`e${i}`);
-    await addHistory(Array.from({ length: 160 }, (_, i) => item(1000 + i)));
-    for (let i = 0; i < 160; i++) await removeHistory(`e${1000 + i}`);
+    await addHistory(Array.from({ length: second }, (_, i) => item(1000 + i)));
+    for (let i = 0; i < second; i++) await removeHistory(`e${1000 + i}`);
     // 가장 오래전에 지운 e1 은 상한 밖으로 밀려나 다시 들어올 수 있다
     await addHistory([item(1), item(2000)]);
     const ids = (await loadHistory()).map((i) => i.eventId);
     expect(ids).toContain('e2000');
     expect(ids).toContain('e1');
     // 최근에 지운 항목은 계속 막는다
-    await addHistory([item(1159)]);
-    expect((await loadHistory()).map((i) => i.eventId)).not.toContain('e1159');
+    const last = `e${1000 + second - 1}`;
+    await addHistory([item(1000 + second - 1)]);
+    expect((await loadHistory()).map((i) => i.eventId)).not.toContain(last);
+  });
+
+  it('기록 지우기가 동기화 id를 한꺼번에 넣어도 이전에 지운 id가 밀려나지 않는다', async () => {
+    // 동기화 캐시 id(최대 200건)와 이력(최대 50건)을 함께 넣는 가장 큰 경우를 가정한다
+    store.set('deleted-event-ids-v1', JSON.stringify(Array.from({ length: 100 }, (_, i) => `old-${i}`)));
+    await addHistory(Array.from({ length: 50 }, (_, i) => item(i + 1)));
+
+    await clearHistory(Array.from({ length: 200 }, (_, i) => `sync-${i}`));
+
+    const deleted: string[] = JSON.parse(store.get('deleted-event-ids-v1') ?? '[]');
+    expect(deleted).toContain('old-0');
+    expect(deleted).toContain('e1');
+    expect(deleted).toContain('sync-0');
+    expect(deleted).toContain('sync-199');
+    expect(deleted).toHaveLength(350);
   });
 
   it('없는 id 를 지워도 던지지 않는다', async () => {

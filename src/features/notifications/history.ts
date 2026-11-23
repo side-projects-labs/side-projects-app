@@ -7,7 +7,8 @@ const KEY = 'deployment-history-v1';
 const DELETED_KEY = 'deleted-event-ids-v1';
 const MAX_ITEMS = 50;
 // 지운 항목이 알림 센터 동기화로 되살아나지 않도록 id를 기억한다. 무한히 쌓이지 않게 최근 것만 남긴다.
-const MAX_DELETED = 200;
+// 기록 지우기는 동기화 캐시 id(최대 200건)와 이력(최대 50건)을 한꺼번에 넣으므로, 이전에 지운 id가 밀려나지 않게 여유를 둔다.
+export const MAX_DELETED = 500;
 
 /** 기기에서 본 배포 알림 한 건. 서버가 없어 이 기기가 받은 알림만 남는다. */
 export type HistoryItem = {
