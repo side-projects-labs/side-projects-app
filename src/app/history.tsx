@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DeploymentStatus } from '@/features/notifications/contract';
 import { syncedEventIds } from '@/features/notifications/deployment-sync-runner';
+import { createLatestGuard } from '@/features/notifications/latest-guard';
 import {
   clearHistory,
   loadHistory,
@@ -80,27 +81,28 @@ export default function HistoryScreen() {
   );
   const visible = useMemo(() => filterHistory(all, activeFilter), [all, activeFilter]);
 
+  // 읽기가 겹치면(화면 진입, 알림 수신, 배포 기록 보충) 가장 최근에 시작한 읽기의 결과만 반영한다.
+  const [guard] = useState(createLatestGuard);
+
   useFocusEffect(
     useCallback(() => {
-      let alive = true;
-      loadHistory().then((list) => alive && setItems(list));
-      return () => {
-        alive = false;
-      };
-    }, []),
+      const isCurrent = guard.begin();
+      void loadHistory().then((list) => isCurrent() && setItems(list));
+      return () => guard.cancel();
+    }, [guard]),
   );
 
   // 화면이 열려 있는 동안 알림 수신·배포 기록 보충·삭제로 이력이 바뀌면 다시 읽는다.
   useEffect(() => {
-    let alive = true;
     const unsubscribe = subscribeHistory(() => {
-      void loadHistory().then((list) => alive && setItems(list));
+      const isCurrent = guard.begin();
+      void loadHistory().then((list) => isCurrent() && setItems(list));
     });
     return () => {
-      alive = false;
+      guard.cancel();
       unsubscribe();
     };
-  }, []);
+  }, [guard]);
 
   const clear = async () => {
     // 알림 센터에 남아 있지만 아직 이력에 없는 알림도 함께 기억해, 지운 뒤 앱을 열어도 되살아나지 않게 한다.
