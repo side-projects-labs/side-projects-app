@@ -8,7 +8,7 @@
 - 패키지 매니저는 npm이고 lockfile은 하나만 둡니다. Expo 패키지는 `npx expo install`로 추가합니다. 완료 전에 `npm run typecheck`, `npx expo lint`, `npm test`를 실행하고 결과를 보고합니다.
 - 푸시 `data`, 원격 카탈로그, WebView가 요청하는 URL은 신뢰할 수 없는 입력이라 사용 전에 파싱·검증하고 허용 목록 방식을 씁니다.
 - 브랜치는 `feat|fix|docs|ci/<이슈번호>-<설명>` 형식입니다. 커밋과 PR 본문에 `Refs #<이슈번호>`를 남기고 `Fixes`, `Closes`는 쓰지 않습니다.
-- PR 본문은 `.github/pull_request_template.md`, 이슈 본문은 `.github/ISSUE_TEMPLATE.md`의 절을 모두 채웁니다. `gh pr create`와 `gh issue create`는 템플릿을 자동으로 채워 주지 않으므로 파일을 읽어 옮겨 적습니다.
+- PR 본문은 `.github/pull_request_template.md`, 이슈 본문은 `.github/ISSUE_TEMPLATE.md`의 절을 모두 채웁니다. `gh pr create`와 `gh issue create`를 `--body`나 `--body-file`로 쓸 때는 템플릿이 자동으로 채워지지 않으므로 파일을 읽어 옮겨 적습니다.
 - PR을 올리면 `code-review` 스킬 기준으로 직접 리뷰하고 `bash .github/scripts/post-review.sh <번호> <파일>`로 남깁니다. 치명·중요 지적이 있거나 최신 커밋의 리뷰가 없으면 CI `check`의 리뷰 게이트가 병합을 막습니다.
 - 병합은 담당자의 지시가 있을 때만 하고, 병합 전에 CI와 mergeable 상태를 확인합니다.
 - 시크릿과 토큰 값은 사람이 등록합니다. 값을 읽거나 저장소, 이슈, 로그에 남기지 않고 등록 방법만 안내합니다.
