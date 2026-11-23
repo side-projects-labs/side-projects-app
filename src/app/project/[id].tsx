@@ -22,6 +22,7 @@ import {
   saveLastVisit,
 } from '@/features/projects/last-project';
 import { cookieResetUrls, type ResetScope } from '@/features/projects/login-reset';
+import { runLoginReset } from '@/features/projects/login-reset-flow';
 import { resetLogin } from '@/features/projects/login-reset-native';
 import { isRememberableUrl, resolveResume, resolveShareUrl } from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
@@ -99,23 +100,24 @@ export default function ProjectWebViewScreen() {
   const runReset = useCallback(
     async (scope: ResetScope) => {
       if (!project) return;
-      // 대기 중인 저장이 초기화 뒤에 옛 주소를 다시 쓰지 않도록 버린다.
-      saver.forget();
-      webRef.current?.clearCache?.(true);
-      const result = await resetLogin(project, scope);
-      await clearLastVisitFor(project.id);
-      // 초기화가 진행되는 동안 이전 WebView의 이동으로 새로 예약된 저장도 버린다.
-      saver.forget();
-      setFailed(false);
-      setCurrentUrl(undefined);
-      setStartUrl(project.url);
-      setSession((n) => n + 1);
-      if (result.failed > 0) {
-        Alert.alert(
-          '일부 항목을 지우지 못했습니다',
-          '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.',
-        );
-      }
+      // 호출 순서는 login-reset-flow.ts에서 정하고 테스트한다.
+      await runLoginReset({
+        cancelPendingSave: saver.forget,
+        clearWebViewCache: () => webRef.current?.clearCache?.(true),
+        resetCookies: () => resetLogin(project, scope),
+        clearLastVisit: () => clearLastVisitFor(project.id),
+        restartWebView: () => {
+          setFailed(false);
+          setCurrentUrl(undefined);
+          setStartUrl(project.url);
+          setSession((n) => n + 1);
+        },
+        warnPartialFailure: () =>
+          Alert.alert(
+            '일부 항목을 지우지 못했습니다',
+            '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.',
+          ),
+      });
     },
     [project, saver],
   );
