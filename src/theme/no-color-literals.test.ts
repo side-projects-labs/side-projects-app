@@ -17,10 +17,13 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-// #RGB·#RRGGBB(·알파) 리터럴, rgb()/rgba()/hsl() 함수, 스타일 객체(color: 'x')와 JSX 속성(color="x")의 색 이름
+// #RGB·#RRGGBB(·알파) 리터럴, rgb()/rgba()/hsl() 함수, 스타일 객체(color: 'x')·JSX 속성(color="x")·삼항 안의 색 이름
 // 앞이 글자·숫자·슬래시면 URL 해시나 키(`/#abc`, `page#add`, `o/new#999`)라 색이 아니다. 길이는 유효한 3·4·6·8자리만 본다.
 const HEX = /(?<![\w/])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/;
 const FUNCTION = /\b(rgba?|hsla?)\(/;
+// 삼항·논리식 안에 있어 속성 이름 바로 뒤가 아닌 위치의 색 이름(`color: ok ? 'white' : t.text`). 따옴표로 감싼 색 이름 하나만 본다.
+const NAMED_WORD =
+  /(['"`])(white|black|red|green|blue|gray|grey|yellow|orange|purple|pink|brown|cyan|magenta|silver|gold|navy|teal|maroon|lime|aqua|olive|fuchsia)\1/i;
 const NAMED = /\b(color|backgroundColor|borderColor|tintColor)\s*[:=]\s*['"](?!transparent['"])[a-zA-Z]+['"]/;
 
 describe('화면 코드의 색', () => {
@@ -29,7 +32,7 @@ describe('화면 코드의 색', () => {
       readFileSync(file, 'utf8')
         .split('\n')
         .flatMap((line, i) =>
-          HEX.test(line) || FUNCTION.test(line) || NAMED.test(line)
+          HEX.test(line) || FUNCTION.test(line) || NAMED.test(line) || NAMED_WORD.test(line)
             ? [`${relative(ROOT, file)}:${i + 1}  ${line.trim()}`]
             : [],
         ),
@@ -68,6 +71,25 @@ describe('화면 코드의 색', () => {
     'const id = 7;',
   ])('색이 아닌 문자열(%s)은 색으로 보지 않는다', (code) => {
     expect(HEX.test(code)).toBe(false);
+  });
+
+  it.each([
+    "color: selected ? 'white' : t.text",
+    "backgroundColor: ok ? 'green' : 'red'",
+    'const c = "black";',
+    "style={{ color: cond && 'gray' }}",
+  ])('삼항·논리식 안의 색 이름(%s)도 잡는다', (code) => {
+    expect(NAMED_WORD.test(code)).toBe(true);
+  });
+
+  it.each([
+    "color: t.text",
+    "label: 'Redwood'",
+    "const greenhouse = 1;",
+    "backgroundColor: 'transparent'",
+    "name: 'dark'",
+  ])('색 이름이 아닌 코드(%s)는 잡지 않는다', (code) => {
+    expect(NAMED_WORD.test(code)).toBe(false);
   });
 
   it('검사 패턴이 색 리터럴을 실제로 잡는다', () => {
