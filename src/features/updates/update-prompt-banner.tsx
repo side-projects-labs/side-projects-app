@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/theme/theme';
+import { MIN_TOUCH_TARGET, verticalHitSlop } from '@/theme/touch';
 
 import { shouldShowUpdatePrompt } from './update-prompt';
 import { useForegroundUpdateCheck } from './use-foreground-update-check';
@@ -49,7 +50,7 @@ export function UpdatePrompt() {
         <Text style={[styles.text, { color: t.text }]}>새 버전이 준비됐어요</Text>
         <Pressable
           accessibilityRole="button"
-          hitSlop={8}
+          hitSlop={verticalHitSlop(DISMISS_TEXT_HEIGHT)}
           onPress={() => setDismissedId(pendingId ?? 'unknown')}>
           <Text style={{ color: t.subtext }}>나중에</Text>
         </Pressable>
@@ -65,6 +66,9 @@ export function UpdatePrompt() {
   );
 }
 
+/** '나중에' 글자(14px)의 대략적인 높이. */
+const DISMISS_TEXT_HEIGHT = 18;
+
 const styles = StyleSheet.create({
   // 화면 위에 덮지 않고 Stack 아래에 자리를 차지해, 하단 입력 요소가 있는 화면도 가리지 않는다.
   wrap: { paddingHorizontal: 16, paddingTop: 8 },
@@ -78,7 +82,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   text: { flex: 1, fontSize: 14, fontWeight: '600' },
-  button: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  button: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   disabled: { opacity: 0.6 },
   buttonText: { fontWeight: '600', fontSize: 13 },
 });

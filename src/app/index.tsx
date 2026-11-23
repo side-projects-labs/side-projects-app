@@ -12,6 +12,7 @@ import { describeVisit, resolveResume, type LastVisit } from '@/features/project
 import { useHealth } from '@/features/projects/use-health';
 import { usePins } from '@/features/projects/use-pins';
 import { useTheme, type Palette } from '@/theme/theme';
+import { hitSlopFor, minGapFor, verticalHitSlop } from '@/theme/touch';
 
 export default function ProjectListScreen() {
   const { projects, source, refreshing, refresh } = useCatalog();
@@ -48,23 +49,23 @@ export default function ProjectListScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={editing ? '순서 변경 완료' : '고정한 프로젝트 순서 변경'}
-                  hitSlop={8}
+                  hitSlop={verticalHitSlop(TEXT_BUTTON_HEIGHT)}
                   onPress={() => setEditing((v) => !v)}>
                   <Text style={{ fontSize: 15, color: t.accent }}>{editing ? '완료' : '순서'}</Text>
                 </Pressable>
               ) : null}
               <Link href="/about" asChild>
-                <Pressable accessibilityRole="button" accessibilityLabel="앱 정보" hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel="앱 정보" hitSlop={hitSlopFor(HEADER_ICON_SIZE)}>
                   <Ionicons name="information-circle-outline" size={HEADER_ICON_SIZE} color={t.accent} />
                 </Pressable>
               </Link>
               <Link href="/history" asChild>
-                <Pressable accessibilityRole="button" accessibilityLabel="배포 이력" hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel="배포 이력" hitSlop={hitSlopFor(HEADER_ICON_SIZE)}>
                   <Ionicons name="time-outline" size={HEADER_ICON_SIZE} color={t.accent} />
                 </Pressable>
               </Link>
               <Link href="/notifications" asChild>
-                <Pressable accessibilityRole="button" accessibilityLabel="배포 알림 설정" hitSlop={8}>
+                <Pressable accessibilityRole="button" accessibilityLabel="배포 알림 설정" hitSlop={hitSlopFor(HEADER_ICON_SIZE)}>
                   <Ionicons name="notifications-outline" size={HEADER_ICON_SIZE} color={t.accent} />
                 </Pressable>
               </Link>
@@ -154,6 +155,10 @@ export default function ProjectListScreen() {
 }
 
 const HEADER_ICON_SIZE = 24;
+const PIN_ICON_SIZE = 24;
+const REORDER_ICON_SIZE = 24;
+/** '순서/완료' 글자(15px)의 대략적인 높이. 글자 버튼은 높이에 맞춰 위아래 터치 영역을 늘린다. */
+const TEXT_BUTTON_HEIGHT = 20;
 
 /** 제목 왼쪽의 고정(즐겨찾기) 별. 고정 전에도 눈에 띄도록 윤곽선을 보조 글자색으로 그린다. */
 function PinStar({
@@ -171,11 +176,11 @@ function PinStar({
       accessibilityRole="button"
       accessibilityLabel={`${name} ${pinned ? '고정 해제' : '고정'}`}
       accessibilityState={{ selected: pinned }}
-      hitSlop={10}
+      hitSlop={hitSlopFor(PIN_ICON_SIZE)}
       onPress={onToggle}>
       <Ionicons
         name={pinned ? 'star' : 'star-outline'}
-        size={24}
+        size={PIN_ICON_SIZE}
         color={pinned ? t.pin : t.subtext}
       />
     </Pressable>
@@ -201,17 +206,17 @@ function ReorderControls({
         accessibilityRole="button"
         accessibilityLabel={`${name} 위로 이동`}
         disabled={!canUp}
-        hitSlop={8}
+        hitSlop={hitSlopFor(REORDER_ICON_SIZE)}
         onPress={() => onMove('up')}>
-        <Ionicons name="chevron-up" size={24} color={canUp ? t.accent : t.border} />
+        <Ionicons name="chevron-up" size={REORDER_ICON_SIZE} color={canUp ? t.accent : t.border} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${name} 아래로 이동`}
         disabled={!canDown}
-        hitSlop={8}
+        hitSlop={hitSlopFor(REORDER_ICON_SIZE)}
         onPress={() => onMove('down')}>
-        <Ionicons name="chevron-down" size={24} color={canDown ? t.accent : t.border} />
+        <Ionicons name="chevron-down" size={REORDER_ICON_SIZE} color={canDown ? t.accent : t.border} />
       </Pressable>
     </View>
   );
@@ -246,7 +251,8 @@ function HealthChip({ status }: { status: HealthStatus | undefined }) {
 const styles = StyleSheet.create({
   resume: { padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12, gap: 2 },
   resumePath: { fontSize: 12 },
-  pinCol: { gap: 8, alignItems: 'center' },
+  // 확장된 터치 영역이 서로 겹치지 않는 간격
+  pinCol: { gap: minGapFor(REORDER_ICON_SIZE), alignItems: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chip: {
     flexDirection: 'row',
@@ -259,7 +265,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 11, fontWeight: '500' },
   screen: { flex: 1 },
-  headerActions: { flexDirection: 'row', gap: 16 },
+  headerActions: { flexDirection: 'row', gap: minGapFor(HEADER_ICON_SIZE) },
   list: { padding: 16, gap: 12 },
   card: {
     flexDirection: 'row',

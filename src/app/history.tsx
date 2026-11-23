@@ -23,6 +23,7 @@ import {
 } from '@/features/notifications/history-filter';
 import { useCatalog } from '@/features/projects/catalog-context';
 import { useTheme } from '@/theme/theme';
+import { hitSlopFor, minGapFor, verticalHitSlop } from '@/theme/touch';
 
 const STATUS_FILTERS: { value: DeploymentStatus | undefined; label: string }[] = [
   { value: undefined, label: '전체' },
@@ -53,6 +54,7 @@ function FilterChip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      hitSlop={verticalHitSlop(CHIP_HEIGHT)}
       onPress={onPress}
       style={[
         styles.chip,
@@ -181,9 +183,9 @@ export default function HistoryScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${project?.name ?? item.projectId} 알림 기록 삭제`}
-                    hitSlop={10}
+                    hitSlop={hitSlopFor(CLOSE_ICON_SIZE)}
                     onPress={() => void remove(item.eventId)}>
-                    <Ionicons name="close" size={18} color={t.subtext} />
+                    <Ionicons name="close" size={CLOSE_ICON_SIZE} color={t.subtext} />
                   </Pressable>
                 </View>
               </View>
@@ -213,12 +215,17 @@ export default function HistoryScreen() {
   );
 }
 
+const CLOSE_ICON_SIZE = 18;
+/** 필터 칩(글자 13px, 세로 패딩 6×2)의 대략적인 높이. */
+const CHIP_HEIGHT = 28;
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   list: { padding: 16, gap: 12 },
   header: { gap: 10, marginBottom: 4 },
   note: { fontSize: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // 칩 모양은 그대로 두고 위아래 터치 영역만 늘리므로, 줄 사이 간격은 그 영역이 겹치지 않게 둔다.
+  chips: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: minGapFor(CHIP_HEIGHT) },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   empty: { textAlign: 'center', marginTop: 48 },
