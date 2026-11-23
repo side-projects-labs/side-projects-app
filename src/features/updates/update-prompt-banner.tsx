@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/theme/theme';
+import { MIN_TOUCH_TARGET } from '@/theme/touch';
 
 import { shouldShowUpdatePrompt } from './update-prompt';
 import { useForegroundUpdateCheck } from './use-foreground-update-check';
@@ -49,8 +50,8 @@ export function UpdatePrompt() {
         <Text style={[styles.text, { color: t.text }]}>새 버전이 준비됐어요</Text>
         <Pressable
           accessibilityRole="button"
-          hitSlop={8}
-          onPress={() => setDismissedId(pendingId ?? 'unknown')}>
+          onPress={() => setDismissedId(pendingId ?? 'unknown')}
+          style={styles.dismiss}>
           <Text style={{ color: t.subtext }}>나중에</Text>
         </Pressable>
         <Pressable
@@ -78,7 +79,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   text: { flex: 1, fontSize: 14, fontWeight: '600' },
-  button: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  button: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
+  dismiss: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   disabled: { opacity: 0.6 },
   buttonText: { fontWeight: '600', fontSize: 13 },
 });

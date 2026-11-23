@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/theme/theme';
+import { MIN_TOUCH_TARGET } from '@/theme/touch';
 
 import { useAppLock } from './app-lock-context';
 
@@ -40,6 +41,6 @@ const styles = StyleSheet.create({
     elevation: 100,
   },
   title: { fontSize: 18, fontWeight: '600' },
-  button: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  button: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   buttonText: { fontWeight: '600', fontSize: 15 },
 });

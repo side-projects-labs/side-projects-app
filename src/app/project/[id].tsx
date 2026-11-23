@@ -29,6 +29,7 @@ import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-polic
 import { createVisitSaver } from '@/features/projects/visit-saver';
 import { WebToolbar } from '@/features/projects/web-toolbar';
 import { useTheme } from '@/theme/theme';
+import { hitSlopFor, minGapFor } from '@/theme/touch';
 
 const SAVE_DELAY_MS = 800;
 const ACTION_ICON_SIZE = 24;
@@ -193,14 +194,14 @@ export default function ProjectWebViewScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="로그인 초기화"
-                hitSlop={8}
+                hitSlop={hitSlopFor(ACTION_ICON_SIZE)}
                 onPress={confirmResetLogin}>
                 <Ionicons name="log-out-outline" size={ACTION_ICON_SIZE} color={t.accent} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="브라우저로 열기"
-                hitSlop={8}
+                hitSlop={hitSlopFor(ACTION_ICON_SIZE)}
                 onPress={openInBrowser}>
                 <Ionicons name="open-outline" size={ACTION_ICON_SIZE} color={t.accent} />
               </Pressable>
@@ -284,7 +285,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  actions: { flexDirection: 'row', gap: 16, paddingRight: 4 },
+  // 확장된 터치 영역이 서로 겹치지 않는 간격
+  actions: { flexDirection: 'row', gap: minGapFor(ACTION_ICON_SIZE), paddingRight: 4 },
   progressTrack: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 1 },
   progressBar: { height: 2 },
 });

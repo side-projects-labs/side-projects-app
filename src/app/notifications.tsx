@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { registerForDeploymentPush, type RegistrationResult } from '@/features/notifications/setup';
 import { useTheme } from '@/theme/theme';
+import { MIN_TOUCH_TARGET } from '@/theme/touch';
 
 const REASONS: Record<Exclude<RegistrationResult, { ok: true }>['reason'], string> = {
   'not-device': '실제 기기에서만 푸시 토큰을 받을 수 있어요. (에뮬레이터/시뮬레이터 불가)',
@@ -101,8 +102,15 @@ const styles = StyleSheet.create({
   card: { padding: 16, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, gap: 10 },
   label: { fontSize: 12 },
   token: { fontSize: 13, fontFamily: 'Courier' },
-  button: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  button: { paddingVertical: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH_TARGET },
   buttonText: { fontWeight: '600' },
   warn: { fontSize: 12, lineHeight: 18 },
-  secondary: { paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  secondary: {
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+  },
 });

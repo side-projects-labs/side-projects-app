@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_DELETED, addHistory, clearHistory, loadHistory, removeHistory, type HistoryItem } from './history';
+import { MAX_DELETED, addHistory, clearHistory, loadHistory, removeHistory, subscribeHistory, type HistoryItem } from './history';
 
 // vi.mock 은 import 보다 먼저 실행되도록 vitest 가 끌어올린다.
 const store = new Map<string, string>();
@@ -152,5 +152,88 @@ describe('손상된 저장값', () => {
   it('저장소 쓰기 오류는 던지지 않는다', async () => {
     storage.setItem.mockRejectedValueOnce(new Error('full'));
     await expect(addHistory([item(1)])).resolves.toBeUndefined();
+  });
+});
+
+describe('이력 변경 알림', () => {
+  it('이력을 추가하면 저장이 끝난 뒤에 구독자에게 알린다', async () => {
+    let seen: string[] = [];
+    const listener = vi.fn(async () => {
+      seen = (await loadHistory()).map((i) => i.eventId);
+    });
+    const unsubscribe = subscribeHistory(() => void listener());
+
+    await addHistory([item(1), item(2)]);
+    await Promise.resolve();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(seen.sort()).toEqual(['e1', 'e2']));
+    unsubscribe();
+  });
+
+  it('추가할 것이 없거나 모두 지운 항목이면 알리지 않는다', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeHistory(listener);
+    await addHistory([item(1)]);
+    await removeHistory('e1');
+    listener.mockClear();
+
+    await addHistory([]);
+    await addHistory([item(1)]); // 지운 id라 추가되지 않는다
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('한 건 삭제와 전체 삭제도 알린다', async () => {
+    await addHistory([item(1), item(2)]);
+    const listener = vi.fn();
+    const unsubscribe = subscribeHistory(listener);
+
+    await removeHistory('e1');
+    expect(listener).toHaveBeenCalledTimes(1);
+    await clearHistory();
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it('구독을 해제하면 더 알리지 않는다', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeHistory(listener);
+    unsubscribe();
+
+    await addHistory([item(1)]);
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('구독자가 여러 명이면 모두에게 알린다', async () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    const offA = subscribeHistory(a);
+    const offB = subscribeHistory(b);
+
+    await addHistory([item(1)]);
+
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+    offA();
+    offB();
+  });
+
+  it('구독자가 예외를 던져도 다른 구독자와 이력 저장은 영향받지 않는다', async () => {
+    const bad = vi.fn(() => {
+      throw new Error('listener failed');
+    });
+    const good = vi.fn();
+    const offBad = subscribeHistory(bad);
+    const offGood = subscribeHistory(good);
+
+    await expect(addHistory([item(1)])).resolves.toBeUndefined();
+
+    expect(good).toHaveBeenCalledTimes(1);
+    expect((await loadHistory()).map((i) => i.eventId)).toEqual(['e1']);
+    offBad();
+    offGood();
   });
 });

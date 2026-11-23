@@ -97,6 +97,29 @@ async function saveItems(items: HistoryItem[]): Promise<void> {
   }
 }
 
+const listeners = new Set<() => void>();
+
+/**
+ * 저장된 이력이 바뀐 뒤(추가·삭제·전체 삭제)에 알림을 받는다. 이력 화면이 열려 있는 동안 알림 수신이나 배포 기록 보충으로
+ * 이력이 바뀌어도 다시 들어오지 않고 갱신하려는 용도다. 반환값을 호출하면 구독이 해제된다.
+ */
+export function subscribeHistory(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notifyHistoryChanged(): void {
+  for (const listener of [...listeners]) {
+    try {
+      listener();
+    } catch {
+      // 한 구독자의 오류가 저장 결과나 다른 구독자에게 번지지 않게 한다.
+    }
+  }
+}
+
 /** 같은 eventId는 한 번만 남기고(최신 값 유지), 최근 순으로 최대 50건만 저장한다. 사용자가 지운 항목은 넣지 않는다. */
 export function addHistory(items: HistoryItem[]): Promise<void> {
   if (items.length === 0) return Promise.resolve();
@@ -108,6 +131,7 @@ export function addHistory(items: HistoryItem[]): Promise<void> {
     for (const it of [...(await loadHistory()), ...fresh]) byId.set(it.eventId, it);
     const merged = [...byId.values()].sort((a, b) => b.receivedAt - a.receivedAt).slice(0, MAX_ITEMS);
     await saveItems(merged);
+    notifyHistoryChanged();
   });
 }
 
@@ -116,6 +140,7 @@ export function removeHistory(eventId: string): Promise<void> {
   return enqueue(async () => {
     await saveItems((await loadHistory()).filter((it) => it.eventId !== eventId));
     await saveDeletedIds([...(await loadDeletedIds()), eventId]);
+    notifyHistoryChanged();
   });
 }
 
@@ -132,5 +157,6 @@ export function clearHistory(alsoForget: readonly string[] = []): Promise<void> 
     } catch {
       // 무시
     }
+    notifyHistoryChanged();
   });
 }

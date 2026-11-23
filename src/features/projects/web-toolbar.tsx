@@ -40,7 +40,6 @@ export function WebToolbar({ canGoBack, canGoForward, onBack, onForward, onReloa
           accessibilityLabel={it.label}
           accessibilityState={{ disabled: !it.enabled }}
           disabled={!it.enabled}
-          hitSlop={6}
           onPress={it.onPress}
           style={styles.item}>
           <Ionicons name={it.icon} size={ICON_SIZE} color={it.enabled ? t.accent : t.border} />

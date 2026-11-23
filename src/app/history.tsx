@@ -1,16 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DeploymentStatus } from '@/features/notifications/contract';
 import { syncedEventIds } from '@/features/notifications/deployment-sync-runner';
+import { createLatestGuard } from '@/features/notifications/latest-guard';
 import {
   clearHistory,
   loadHistory,
   removeHistory,
+  subscribeHistory,
   toHistoryItem,
   type HistoryItem,
 } from '@/features/notifications/history';
@@ -21,6 +23,7 @@ import {
 } from '@/features/notifications/history-filter';
 import { useCatalog } from '@/features/projects/catalog-context';
 import { useTheme } from '@/theme/theme';
+import { MIN_TOUCH_TARGET, hitSlopFor } from '@/theme/touch';
 
 const STATUS_FILTERS: { value: DeploymentStatus | undefined; label: string }[] = [
   { value: undefined, label: '전체' },
@@ -48,15 +51,15 @@ function FilterChip({
 }) {
   const t = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[
-        styles.chip,
-        { borderColor: selected ? t.accent : t.border, backgroundColor: selected ? t.accent : 'transparent' },
-      ]}>
-      <Text style={{ color: selected ? t.onAccent : t.text, fontSize: 13 }}>{label}</Text>
+    // 바깥 Pressable이 터치 영역(최소 44)을 보장하고, 안쪽 View가 칩 모양을 그린다. 글꼴 크기가 바뀌어도 영역이 모자라지 않는다.
+    <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={styles.chipTouch}>
+      <View
+        style={[
+          styles.chip,
+          { borderColor: selected ? t.accent : t.border, backgroundColor: selected ? t.accent : 'transparent' },
+        ]}>
+        <Text style={{ color: selected ? t.onAccent : t.text, fontSize: 13 }}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -79,15 +82,28 @@ export default function HistoryScreen() {
   );
   const visible = useMemo(() => filterHistory(all, activeFilter), [all, activeFilter]);
 
+  // 읽기가 겹치면(화면 진입, 알림 수신, 배포 기록 보충) 가장 최근에 시작한 읽기의 결과만 반영한다.
+  const [guard] = useState(createLatestGuard);
+
   useFocusEffect(
     useCallback(() => {
-      let alive = true;
-      loadHistory().then((list) => alive && setItems(list));
-      return () => {
-        alive = false;
-      };
-    }, []),
+      const isCurrent = guard.begin();
+      void loadHistory().then((list) => isCurrent() && setItems(list));
+      return () => guard.cancel();
+    }, [guard]),
   );
+
+  // 화면이 열려 있는 동안 알림 수신·배포 기록 보충·삭제로 이력이 바뀌면 다시 읽는다.
+  useEffect(() => {
+    const unsubscribe = subscribeHistory(() => {
+      const isCurrent = guard.begin();
+      void loadHistory().then((list) => isCurrent() && setItems(list));
+    });
+    return () => {
+      guard.cancel();
+      unsubscribe();
+    };
+  }, [guard]);
 
   const clear = async () => {
     // 알림 센터에 남아 있지만 아직 이력에 없는 알림도 함께 기억해, 지운 뒤 앱을 열어도 되살아나지 않게 한다.
@@ -166,9 +182,9 @@ export default function HistoryScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${project?.name ?? item.projectId} 알림 기록 삭제`}
-                    hitSlop={10}
+                    hitSlop={hitSlopFor(CLOSE_ICON_SIZE)}
                     onPress={() => void remove(item.eventId)}>
-                    <Ionicons name="close" size={18} color={t.subtext} />
+                    <Ionicons name="close" size={CLOSE_ICON_SIZE} color={t.subtext} />
                   </Pressable>
                 </View>
               </View>
@@ -198,12 +214,15 @@ export default function HistoryScreen() {
   );
 }
 
+const CLOSE_ICON_SIZE = 18;
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   list: { padding: 16, gap: 12 },
   header: { gap: 10, marginBottom: 4 },
   note: { fontSize: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8 },
+  chipTouch: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   empty: { textAlign: 'center', marginTop: 48 },
