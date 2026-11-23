@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loadHistory, removeHistory, addHistory, type HistoryItem } from './history';
-import { loadSyncState, runDeploymentSync } from './deployment-sync-runner';
+import { addHistory, clearHistory, loadHistory, removeHistory, type HistoryItem } from './history';
+import { loadSyncState, runDeploymentSync, syncedEventIds } from './deployment-sync-runner';
 
 const store = new Map<string, string>();
 const storage = vi.hoisted(() => ({ getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() }));
@@ -13,7 +13,7 @@ const NOW = Date.parse('2026-11-23T12:00:00Z');
 const MIN = 60_000;
 const SYNC_KEY = 'deployment-sync-v1';
 
-const response = (body: unknown, status = 200) => ({ ok: status < 300, status, json: async () => body });
+const response = (body: unknown, status = 200) => ({ ok: status < 300, status, headers: { get: () => null }, json: async () => body });
 
 /** 배포 하나(성공)를 돌려주는 가짜 GitHub. */
 function fakeGithub(over: { deploymentId?: number; at?: string } = {}) {
@@ -147,11 +147,60 @@ describe('runDeploymentSync', () => {
     expect(listCalls).toHaveLength(1);
   });
 
+  it('기록 지우기 뒤에는 이력이 50건으로 잘려 나갔던 동기화 항목도 되살아나지 않는다', async () => {
+    // 최근 항목 50건이 이력을 채워 오래된 동기화 항목(10시 배포)은 저장되지 않는다.
+    const recent = Array.from({ length: 50 }, (_, i): HistoryItem => ({
+      eventId: `recent-${i}`,
+      projectId: 'other',
+      status: 'succeeded',
+      title: 't',
+      body: 'b',
+      receivedAt: NOW + (i + 1) * MIN,
+    }));
+    await addHistory(recent);
+    await run(fakeGithub());
+    expect((await loadHistory()).some((i) => i.eventId.includes('-deployment-7-'))).toBe(false);
+
+    // 화면의 "기록 지우기"와 같은 순서: 동기화로 알게 된 id도 함께 기억하고 지운다.
+    await clearHistory(await syncedEventIds());
+    await run(fakeGithub(), NOW + 30 * MIN);
+
+    expect(await loadHistory()).toEqual([]);
+  });
+
   it('저장소가 없는 프로젝트뿐이면 요청하지 않는다', async () => {
     const fetchImpl = fakeGithub();
 
     await runDeploymentSync([{ id: 'x' }], { now: () => NOW, fetchImpl: fetchImpl as unknown as typeof fetch });
 
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('syncedEventIds', () => {
+  it('저장된 확정 상태 캐시에서 이력 항목과 같은 eventId를 만든다', async () => {
+    store.set(
+      SYNC_KEY,
+      JSON.stringify({
+        lastSyncAt: NOW,
+        final: {
+          [`${REPO}#7`]: { state: 'success', at: 1 },
+          [`${REPO}#8`]: { state: 'failure', at: 2 },
+        },
+      }),
+    );
+
+    expect(await syncedEventIds()).toEqual([`${REPO}-deployment-7-success`, `${REPO}-deployment-8-failure`]);
+  });
+
+  it('저장된 값이 없거나 손상됐으면 빈 목록이다', async () => {
+    expect(await syncedEventIds()).toEqual([]);
+    store.set(SYNC_KEY, '{broken');
+    expect(await syncedEventIds()).toEqual([]);
+  });
+
+  it('id를 정수로 읽을 수 없는 캐시 키는 건너뛴다', async () => {
+    store.set(SYNC_KEY, JSON.stringify({ final: { 'a/b#x': { state: 'success', at: 1 }, 'noseparator': { state: 'success', at: 1 } } }));
+    expect(await syncedEventIds()).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DeploymentStatus } from '@/features/notifications/contract';
+import { syncedEventIds } from '@/features/notifications/deployment-sync-runner';
 import {
   clearHistory,
   loadHistory,
@@ -92,7 +93,9 @@ export default function HistoryScreen() {
     // 알림 센터에 남아 있지만 아직 이력에 없는 알림도 함께 기억해, 지운 뒤 앱을 열어도 되살아나지 않게 한다.
     const presented = await Notifications.getPresentedNotificationsAsync().catch(() => []);
     const ids = presented.map(toHistoryItem).flatMap((i) => (i ? [i.eventId] : []));
-    await clearHistory(ids);
+    // 동기화로 알게 된 배포도 함께 기억해, 이력에 저장되지 못했던 항목이 다음 동기화에서 되살아나지 않게 한다.
+    const synced = await syncedEventIds().catch(() => []);
+    await clearHistory([...ids, ...synced]);
     setItems([]);
   };
 

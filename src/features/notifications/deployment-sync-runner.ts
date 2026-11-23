@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   collectDeploymentItems,
   dedupeAgainst,
+  eventIdOf,
   isValidRepo,
   shouldSync,
   type SyncCache,
@@ -80,4 +81,18 @@ export async function runDeploymentSync(
   } finally {
     running = false;
   }
+}
+
+/**
+ * 동기화로 알게 된 배포의 eventId 목록. "기록 지우기"가 이 id도 함께 기억하게 해, 이력이 50건으로 잘려 저장되지 못한
+ * 동기화 항목이 지운 뒤 다음 동기화에서 되살아나지 않게 한다.
+ */
+export async function syncedEventIds(): Promise<string[]> {
+  const { cache } = await loadSyncState();
+  return Object.entries(cache.final).flatMap(([key, status]) => {
+    const split = key.lastIndexOf('#');
+    const id = Number(key.slice(split + 1));
+    if (split <= 0 || !Number.isInteger(id)) return [];
+    return [eventIdOf(key.slice(0, split), id, status.state)];
+  });
 }

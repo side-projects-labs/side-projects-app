@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   collectDeploymentItems,
   dedupeAgainst,
+  eventIdOf,
   isValidRepo,
   parseDeployments,
   parseLatestStatus,
@@ -101,6 +102,14 @@ describe('parseLatestStatus', () => {
   });
 });
 
+describe('eventIdOf', () => {
+  it('푸시 알림과 같은 <레포>-deployment-<id>-<상태> 형식이다', () => {
+    expect(eventIdOf('side-projects-labs/portfolio-api', 7995323926, 'success')).toBe(
+      'side-projects-labs/portfolio-api-deployment-7995323926-success',
+    );
+  });
+});
+
 describe('toSyncedItem', () => {
   const d = { id: 101, ref: 'a'.repeat(40), createdAt: Date.parse('2026-11-23T10:00:00Z') };
 
@@ -190,7 +199,12 @@ describe('shouldSync', () => {
 describe('collectDeploymentItems', () => {
   const fetchImpl = vi.fn();
   const emptyCache = (): SyncCache => ({ final: {} });
-  const response = (body: unknown, httpStatus = 200) => ({ ok: httpStatus >= 200 && httpStatus < 300, status: httpStatus, json: async () => body });
+  const response = (body: unknown, httpStatus = 200, headers: Record<string, string> = {}) => ({
+    ok: httpStatus >= 200 && httpStatus < 300,
+    status: httpStatus,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    json: async () => body,
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -277,10 +291,14 @@ describe('collectDeploymentItems', () => {
     expect(items.map((i) => i.projectId)).toEqual(['good']);
   });
 
-  it('요청 한도(403·429)에 걸리면 남은 요청을 보내지 않고 지금까지의 결과를 돌려준다', async () => {
+  it.each([
+    ['429', 429, {}],
+    ['403 + x-ratelimit-remaining: 0', 403, { 'x-ratelimit-remaining': '0' }],
+    ['403 + retry-after(보조 한도)', 403, { 'retry-after': '60' }],
+  ])('요청 한도(%s)에 걸리면 남은 요청을 보내지 않고 지금까지의 결과를 돌려준다', async (_name, httpStatus, headers) => {
     route({
       '/repos/o/a/deployments?': [deployment({ id: 1 })],
-      '/deployments/1/statuses': () => response({ message: 'rate limit' }, 403),
+      '/deployments/1/statuses': () => response({ message: 'rate limit' }, httpStatus, headers),
       '/repos/o/b/deployments?': [deployment({ id: 2 })],
     });
 
@@ -291,6 +309,31 @@ describe('collectDeploymentItems', () => {
 
     expect(items).toEqual([]);
     expect(fetchImpl.mock.calls.some(([u]) => String(u).includes('/repos/o/b/'))).toBe(false);
+  });
+
+  it('요청 한도와 무관한 403(접근 차단 등)은 그 저장소만 건너뛰고 다음 저장소를 계속 조회한다', async () => {
+    route({
+      '/repos/o/blocked/deployments?': () => response({ message: 'Repository access blocked' }, 403, { 'x-ratelimit-remaining': '42' }),
+      '/repos/o/good/deployments?': [deployment({ id: 3 })],
+      '/deployments/3/statuses': [status('success')],
+    });
+
+    const { items } = await run([
+      { id: 'blocked', repo: 'o/blocked' },
+      { id: 'good', repo: 'o/good' },
+    ]);
+
+    expect(items.map((i) => i.projectId)).toEqual(['good']);
+  });
+
+  it('헤더를 읽을 수 없는 403은 한도로 보지 않고 그 저장소만 건너뛴다', async () => {
+    fetchImpl.mockImplementation(async (url: string) =>
+      String(url).includes('/o/a/') ? { ok: false, status: 403, json: async () => ({}) } : response([], 200),
+    );
+
+    await expect(run([{ id: 'a', repo: 'o/a' }, { id: 'b', repo: 'o/b' }])).resolves.toMatchObject({ items: [] });
+
+    expect(fetchImpl.mock.calls.some(([u]) => String(u).includes('/o/b/'))).toBe(true);
   });
 
   it('네트워크 오류나 잘못된 JSON이어도 예외 없이 빈 결과를 돌려준다', async () => {

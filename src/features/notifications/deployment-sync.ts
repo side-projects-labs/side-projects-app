@@ -79,9 +79,14 @@ export function parseLatestStatus(data: unknown): SyncStatus | null {
 }
 
 /**
- * 푸시 알림(`notify-deployment.yml`)과 같은 규칙으로 이력 항목을 만든다. eventId는 `<레포>-deployment-<id>-<상태>`이고
- * 해시처럼 보이는 ref는 7자로 줄인다. 알림으로 받은 같은 배포와 eventId가 같아 한 건으로 합쳐진다.
+ * 푸시 알림(`notify-deployment.yml`)과 같은 규칙으로 이력 항목을 만든다. 해시처럼 보이는 ref는 7자로 줄인다.
+ * eventId가 알림과 같아 알림으로 받은 같은 배포는 한 건으로 합쳐진다.
  */
+/** 푸시 알림(`notify-deployment.yml`)의 eventId 규칙. 알림으로 받은 같은 배포와 이 값으로 한 건이 된다. */
+export function eventIdOf(repo: string, id: number, state: SyncState): string {
+  return `${repo}-deployment-${id}-${state}`;
+}
+
 export function toSyncedItem(
   repo: string,
   projectId: string,
@@ -91,7 +96,7 @@ export function toSyncedItem(
   const ok = status.state === 'success';
   const detail = /^[0-9a-f]{40}$/.test(d.ref) ? d.ref.slice(0, 7) : d.ref.slice(0, 40);
   return {
-    eventId: `${repo}-deployment-${d.id}-${status.state}`,
+    eventId: eventIdOf(repo, d.id, status.state),
     projectId,
     status: ok ? 'succeeded' : 'failed',
     title: ok ? '✅ 배포 완료' : '❌ 배포 실패',
@@ -126,13 +131,23 @@ export function shouldSync(lastSyncAt: number | undefined, now: number): boolean
 
 type Fetched = { kind: 'ok'; data: unknown } | { kind: 'skip' } | { kind: 'abort' };
 
+/**
+ * 요청 한도에 걸린 응답인지 판단한다. 429, 또는 남은 횟수가 0이거나 재시도 대기(`retry-after`, 보조 한도)가 있는 403만 해당한다.
+ * 접근 차단 같은 다른 사유의 403은 한도가 아니므로 그 저장소만 건너뛰고 나머지는 계속 조회한다.
+ */
+function isRateLimited(res: Response): boolean {
+  if (res.status === 429) return true;
+  if (res.status !== 403) return false;
+  return res.headers?.get('x-ratelimit-remaining') === '0' || res.headers?.get('retry-after') != null;
+}
+
 async function getJson(url: string, fetchImpl: typeof fetch): Promise<Fetched> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const res = await fetchImpl(url, { headers: HEADERS, signal: controller.signal });
     // 요청 한도에 걸렸으면 이어서 보내봐야 같은 응답이라 전체를 멈춘다.
-    if (res.status === 403 || res.status === 429) return { kind: 'abort' };
+    if (isRateLimited(res)) return { kind: 'abort' };
     if (!res.ok) return { kind: 'skip' };
     return { kind: 'ok', data: await res.json() };
   } catch {
