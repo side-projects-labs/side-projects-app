@@ -22,14 +22,11 @@ import {
   saveLastVisit,
 } from '@/features/projects/last-project';
 import { cookieResetUrls, type ResetScope } from '@/features/projects/login-reset';
+import { runLoginReset } from '@/features/projects/login-reset-flow';
 import { resetLogin } from '@/features/projects/login-reset-native';
-import {
-  isRememberableUrl,
-  resolveResume,
-  resolveShareUrl,
-  type LastVisit,
-} from '@/features/projects/resume';
+import { isRememberableUrl, resolveResume, resolveShareUrl } from '@/features/projects/resume';
 import { isExternalOpenable, isInternalUrl } from '@/features/projects/url-policy';
+import { createVisitSaver } from '@/features/projects/visit-saver';
 import { WebToolbar } from '@/features/projects/web-toolbar';
 import { useTheme } from '@/theme/theme';
 
@@ -66,17 +63,9 @@ export default function ProjectWebViewScreen() {
       setStartUrl(r && r.project.id === project.id ? r.url : project.url);
     });
   }, [resume, project, projects]);
-  const lastSaved = useRef<string | undefined>(undefined);
   // 잦은 페이지 이동(SPA)마다 저장하지 않도록 잠시 멈췄을 때 한 번만 쓴다. 화면을 떠날 때는 남은 값을 바로 저장한다.
-  const pending = useRef<{ visit: LastVisit; timer: ReturnType<typeof setTimeout> } | null>(null);
-  const flushVisit = useCallback(() => {
-    const p = pending.current;
-    if (!p) return;
-    clearTimeout(p.timer);
-    pending.current = null;
-    void saveLastVisit(p.visit);
-  }, []);
-  useEffect(() => flushVisit, [flushVisit]);
+  const [saver] = useState(() => createVisitSaver(saveLastVisit, SAVE_DELAY_MS));
+  useEffect(() => saver.flush, [saver]);
 
   // Android 하드웨어 뒤로가기: 웹 히스토리가 있으면 웹 내부 먼저, 없으면 기본 동작(목록 복귀).
   useEffect(() => {
@@ -96,16 +85,11 @@ export default function ProjectWebViewScreen() {
       setCanGoForward(nav.canGoForward);
       setCurrentUrl(nav.url);
       // 마지막으로 본 페이지를 기억한다. 로그인·콜백·토큰이 든 주소는 저장하지 않는다.
-      if (project && !nav.loading && nav.url !== lastSaved.current && isRememberableUrl(project, nav.url)) {
-        lastSaved.current = nav.url;
-        if (pending.current) clearTimeout(pending.current.timer);
-        pending.current = {
-          visit: { projectId: project.id, url: nav.url },
-          timer: setTimeout(flushVisit, SAVE_DELAY_MS),
-        };
+      if (project && !nav.loading && isRememberableUrl(project, nav.url)) {
+        saver.schedule({ projectId: project.id, url: nav.url });
       }
     },
-    [project, flushVisit],
+    [project, saver],
   );
 
   const reload = useCallback(() => {
@@ -116,22 +100,26 @@ export default function ProjectWebViewScreen() {
   const runReset = useCallback(
     async (scope: ResetScope) => {
       if (!project) return;
-      webRef.current?.clearCache?.(true);
-      const result = await resetLogin(project, scope);
-      await clearLastVisitFor(project.id);
-      lastSaved.current = undefined;
-      setFailed(false);
-      setCurrentUrl(undefined);
-      setStartUrl(project.url);
-      setSession((n) => n + 1);
-      if (result.failed > 0) {
-        Alert.alert(
-          '일부 항목을 지우지 못했습니다',
-          '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.',
-        );
-      }
+      // 호출 순서는 login-reset-flow.ts에서 정하고 테스트한다.
+      await runLoginReset({
+        cancelPendingSave: saver.forget,
+        clearWebViewCache: () => webRef.current?.clearCache?.(true),
+        resetCookies: () => resetLogin(project, scope),
+        clearLastVisit: () => clearLastVisitFor(project.id),
+        restartWebView: () => {
+          setFailed(false);
+          setCurrentUrl(undefined);
+          setStartUrl(project.url);
+          setSession((n) => n + 1);
+        },
+        warnPartialFailure: () =>
+          Alert.alert(
+            '일부 항목을 지우지 못했습니다',
+            '다시 시도해도 로그인이 풀리지 않으면 앱을 다시 설치해 주세요.',
+          ),
+      });
     },
-    [project],
+    [project, saver],
   );
 
   const confirmResetLogin = useCallback(() => {
