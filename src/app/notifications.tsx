@@ -70,7 +70,7 @@ export default function NotificationSettingsScreen() {
                 accessibilityRole="button"
                 onPress={copy}
                 style={[styles.button, { backgroundColor: t.accent }]}>
-                <Text style={styles.buttonText}>{copied ? '복사했어요' : '토큰 복사'}</Text>
+                <Text style={[styles.buttonText, { color: t.onAccent }]}>{copied ? '복사했어요' : '토큰 복사'}</Text>
               </Pressable>
               <Text style={[styles.warn, { color: t.subtext }]}>
                 이 토큰을 아는 사람은 이 기기로 알림을 보낼 수 있어요. 공개 채널에 붙여 넣지 마세요.
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12 },
   token: { fontSize: 13, fontFamily: 'Courier' },
   button: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: '600' },
+  buttonText: { fontWeight: '600' },
   warn: { fontSize: 12, lineHeight: 18 },
   secondary: { paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
 });

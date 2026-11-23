@@ -11,7 +11,7 @@ import { sanitizePinned, sortProjects } from '@/features/projects/pins';
 import { describeVisit, resolveResume, type LastVisit } from '@/features/projects/resume';
 import { useHealth } from '@/features/projects/use-health';
 import { usePins } from '@/features/projects/use-pins';
-import { useTheme } from '@/theme/theme';
+import { useTheme, type Palette } from '@/theme/theme';
 
 export default function ProjectListScreen() {
   const { projects, source, refreshing, refresh } = useCatalog();
@@ -153,7 +153,6 @@ export default function ProjectListScreen() {
   );
 }
 
-const PIN_COLOR = '#F5B301';
 const HEADER_ICON_SIZE = 24;
 
 /** 제목 왼쪽의 고정(즐겨찾기) 별. 고정 전에도 눈에 띄도록 윤곽선을 보조 글자색으로 그린다. */
@@ -177,7 +176,7 @@ function PinStar({
       <Ionicons
         name={pinned ? 'star' : 'star-outline'}
         size={24}
-        color={pinned ? PIN_COLOR : t.subtext}
+        color={pinned ? t.pin : t.subtext}
       />
     </Pressable>
   );
@@ -223,22 +222,22 @@ const HEALTH_LABEL: Record<HealthStatus, string> = {
   up: '정상',
   down: '응답 없음',
 };
-const HEALTH_COLOR: Record<HealthStatus, string> = {
-  checking: '#9AA3AF',
-  up: '#2DA44E',
-  down: '#D1242F',
-};
+/** 상태 점과 칩 배경 색. 팔레트 토큰을 상태에 대응시킨다. */
+function healthColor(t: Palette, status: HealthStatus): string {
+  return { checking: t.statusChecking, up: t.statusUp, down: t.statusDown }[status];
+}
 
 /** 카드 안에 포함되는 상태 칩. 카드 전체 접근성 라벨에 상태가 들어가므로 따로 읽히지 않게 한다. */
 function HealthChip({ status }: { status: HealthStatus | undefined }) {
   const t = useTheme();
   const s = status ?? 'checking';
+  const color = healthColor(t, s);
   return (
     <View
-      style={[styles.chip, { backgroundColor: `${HEALTH_COLOR[s]}26` }]}
+      style={[styles.chip, { backgroundColor: `${color}26` }]}
       accessible={false}
       importantForAccessibility="no-hide-descendants">
-      <View style={[styles.dot, { backgroundColor: HEALTH_COLOR[s] }]} />
+      <View style={[styles.dot, { backgroundColor: color }]} />
       <Text style={[styles.chipText, { color: t.text }]}>{HEALTH_LABEL[s]}</Text>
     </View>
   );
