@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MIN_TOUCH_TARGET, hitSlopFor, minGapFor, verticalHitSlop } from './touch';
+import { MIN_TOUCH_TARGET, hitSlopFor, minGapFor } from './touch';
 
 describe('MIN_TOUCH_TARGET', () => {
   it('iOS(44pt)와 같은 최소 터치 영역이다', () => {
@@ -48,28 +48,5 @@ describe('minGapFor', () => {
 
   it('이미 충분히 크면 간격이 필요 없다', () => {
     expect(minGapFor(48)).toBe(0);
-  });
-});
-
-describe('verticalHitSlop', () => {
-  it('높이만 키운다. 글자 버튼이나 칩처럼 가로는 이미 충분한 요소에 쓴다', () => {
-    expect(verticalHitSlop(28)).toEqual({ top: 8, bottom: 8 });
-    expect(verticalHitSlop(18)).toEqual({ top: 13, bottom: 13 });
-  });
-
-  it('위아래가 같고 높이가 44 이상이 된다', () => {
-    for (let height = 1; height <= 60; height++) {
-      const { top, bottom } = verticalHitSlop(height);
-      expect(top).toBe(bottom);
-      expect(height + top + bottom).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET);
-    }
-  });
-
-  it('이미 충분히 크면 0이다', () => {
-    expect(verticalHitSlop(44)).toEqual({ top: 0, bottom: 0 });
-  });
-
-  it('올바른 높이가 아니면 던진다', () => {
-    expect(() => verticalHitSlop(0)).toThrow();
   });
 });

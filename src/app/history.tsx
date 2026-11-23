@@ -23,7 +23,7 @@ import {
 } from '@/features/notifications/history-filter';
 import { useCatalog } from '@/features/projects/catalog-context';
 import { useTheme } from '@/theme/theme';
-import { hitSlopFor, minGapFor, verticalHitSlop } from '@/theme/touch';
+import { MIN_TOUCH_TARGET, hitSlopFor } from '@/theme/touch';
 
 const STATUS_FILTERS: { value: DeploymentStatus | undefined; label: string }[] = [
   { value: undefined, label: '전체' },
@@ -51,16 +51,15 @@ function FilterChip({
 }) {
   const t = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      hitSlop={verticalHitSlop(CHIP_HEIGHT)}
-      onPress={onPress}
-      style={[
-        styles.chip,
-        { borderColor: selected ? t.accent : t.border, backgroundColor: selected ? t.accent : 'transparent' },
-      ]}>
-      <Text style={{ color: selected ? t.onAccent : t.text, fontSize: 13 }}>{label}</Text>
+    // 바깥 Pressable이 터치 영역(최소 44)을 보장하고, 안쪽 View가 칩 모양을 그린다. 글꼴 크기가 바뀌어도 영역이 모자라지 않는다.
+    <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={styles.chipTouch}>
+      <View
+        style={[
+          styles.chip,
+          { borderColor: selected ? t.accent : t.border, backgroundColor: selected ? t.accent : 'transparent' },
+        ]}>
+        <Text style={{ color: selected ? t.onAccent : t.text, fontSize: 13 }}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -216,16 +215,14 @@ export default function HistoryScreen() {
 }
 
 const CLOSE_ICON_SIZE = 18;
-/** 필터 칩(글자 13px, 세로 패딩 6×2)의 대략적인 높이. */
-const CHIP_HEIGHT = 28;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   list: { padding: 16, gap: 12 },
   header: { gap: 10, marginBottom: 4 },
   note: { fontSize: 12 },
-  // 칩 모양은 그대로 두고 위아래 터치 영역만 늘리므로, 줄 사이 간격은 그 영역이 겹치지 않게 둔다.
-  chips: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: minGapFor(CHIP_HEIGHT) },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8 },
+  chipTouch: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   empty: { textAlign: 'center', marginTop: 48 },

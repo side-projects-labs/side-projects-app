@@ -23,12 +23,3 @@ export function hitSlopFor(size: number, min: number = MIN_TOUCH_TARGET): number
 export function minGapFor(size: number, min: number = MIN_TOUCH_TARGET): number {
   return 2 * hitSlopFor(size, min);
 }
-
-/**
- * 높이가 `height`인 글자 버튼·칩의 위아래에 더할 `hitSlop`. 가로는 이미 충분히 넓은 요소에 쓰며 모양은 바꾸지 않는다.
- * 줄 바꿈으로 위아래에 다른 요소가 오면 그 간격을 `minGapFor(height)` 이상으로 둔다.
- */
-export function verticalHitSlop(height: number, min: number = MIN_TOUCH_TARGET): { top: number; bottom: number } {
-  const slop = hitSlopFor(height, min);
-  return { top: slop, bottom: slop };
-}

@@ -12,7 +12,7 @@ import { describeVisit, resolveResume, type LastVisit } from '@/features/project
 import { useHealth } from '@/features/projects/use-health';
 import { usePins } from '@/features/projects/use-pins';
 import { useTheme, type Palette } from '@/theme/theme';
-import { hitSlopFor, minGapFor, verticalHitSlop } from '@/theme/touch';
+import { MIN_TOUCH_TARGET, hitSlopFor, minGapFor } from '@/theme/touch';
 
 export default function ProjectListScreen() {
   const { projects, source, refreshing, refresh } = useCatalog();
@@ -49,8 +49,8 @@ export default function ProjectListScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={editing ? '순서 변경 완료' : '고정한 프로젝트 순서 변경'}
-                  hitSlop={verticalHitSlop(TEXT_BUTTON_HEIGHT)}
-                  onPress={() => setEditing((v) => !v)}>
+                  onPress={() => setEditing((v) => !v)}
+                  style={styles.textButton}>
                   <Text style={{ fontSize: 15, color: t.accent }}>{editing ? '완료' : '순서'}</Text>
                 </Pressable>
               ) : null}
@@ -157,8 +157,6 @@ export default function ProjectListScreen() {
 const HEADER_ICON_SIZE = 24;
 const PIN_ICON_SIZE = 24;
 const REORDER_ICON_SIZE = 24;
-/** '순서/완료' 글자(15px)의 대략적인 높이. 글자 버튼은 높이에 맞춰 위아래 터치 영역을 늘린다. */
-const TEXT_BUTTON_HEIGHT = 20;
 
 /** 제목 왼쪽의 고정(즐겨찾기) 별. 고정 전에도 눈에 띄도록 윤곽선을 보조 글자색으로 그린다. */
 function PinStar({
@@ -265,7 +263,9 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   chipText: { fontSize: 11, fontWeight: '500' },
   screen: { flex: 1 },
-  headerActions: { flexDirection: 'row', gap: minGapFor(HEADER_ICON_SIZE) },
+  // 글자 버튼('순서')이 터치 영역 44를 채우므로, 더 작은 아이콘이 위쪽으로 쏠리지 않게 가운데 정렬한다.
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: minGapFor(HEADER_ICON_SIZE) },
+  textButton: { minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' },
   list: { padding: 16, gap: 12 },
   card: {
     flexDirection: 'row',
