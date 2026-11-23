@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ import {
   clearHistory,
   loadHistory,
   removeHistory,
+  subscribeHistory,
   toHistoryItem,
   type HistoryItem,
 } from '@/features/notifications/history';
@@ -88,6 +89,18 @@ export default function HistoryScreen() {
       };
     }, []),
   );
+
+  // 화면이 열려 있는 동안 알림 수신·배포 기록 보충·삭제로 이력이 바뀌면 다시 읽는다.
+  useEffect(() => {
+    let alive = true;
+    const unsubscribe = subscribeHistory(() => {
+      void loadHistory().then((list) => alive && setItems(list));
+    });
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
+  }, []);
 
   const clear = async () => {
     // 알림 센터에 남아 있지만 아직 이력에 없는 알림도 함께 기억해, 지운 뒤 앱을 열어도 되살아나지 않게 한다.
