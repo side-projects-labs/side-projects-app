@@ -99,11 +99,13 @@ export default function ProjectWebViewScreen() {
   const runReset = useCallback(
     async (scope: ResetScope) => {
       if (!project) return;
-      // 대기 중인 저장이 초기화 뒤에 옛 주소를 다시 쓰지 않도록 먼저 버린다.
+      // 대기 중인 저장이 초기화 뒤에 옛 주소를 다시 쓰지 않도록 버린다.
       saver.forget();
       webRef.current?.clearCache?.(true);
       const result = await resetLogin(project, scope);
       await clearLastVisitFor(project.id);
+      // 초기화가 진행되는 동안 이전 WebView의 이동으로 새로 예약된 저장도 버린다.
+      saver.forget();
       setFailed(false);
       setCurrentUrl(undefined);
       setStartUrl(project.url);
