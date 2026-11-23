@@ -6,6 +6,7 @@ import { useColorScheme, View } from 'react-native';
 import { registerForDeploymentPush } from '@/features/notifications/setup';
 import { useNotificationRouting } from '@/features/notifications/use-notification-routing';
 import { useRecordDeploymentHistory } from '@/features/notifications/use-record-history';
+import { useSyncDeploymentHistory } from '@/features/notifications/use-sync-deployments';
 import { AppLockProvider } from '@/features/app-lock/app-lock-context';
 import { LockScreen } from '@/features/app-lock/lock-screen';
 import { CatalogProvider } from '@/features/projects/catalog-context';
@@ -15,6 +16,7 @@ import { DARK, LIGHT } from '@/theme/theme';
 function AppShell() {
   useNotificationRouting();
   useRecordDeploymentHistory();
+  useSyncDeploymentHistory();
 
   useEffect(() => {
     // 토큰 서버 등록은 후속 작업. 현재는 권한·채널·토큰 발급 가능 여부만 확인한다.
