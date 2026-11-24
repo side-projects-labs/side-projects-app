@@ -8,7 +8,7 @@ description: 허브 앱 카탈로그(catalog/projects.json)에 사이드 프로�
 목록의 원본은 `catalog/projects.json`이고 형식은 `docs/catalog.md`를 따른다. 앱은 master의 raw 파일을 받아 쓰므로 **JSON 변경은 앱 재빌드 없이** 반영된다(단, 앱 코드가 해석하는 새 필드는 새 빌드가 필요하다).
 
 ## 조직 저장소 동기화
-`catalog/projects.json`은 조직 저장소(토픽 `side-project-app`)에서 `npm run sync:catalog`로 만들 수 있다. 저장소 `homepage`는 틀릴 수 있어 `catalog/overrides.json`으로 덮어쓰고, 이름·설명·아이콘·`allowedHosts`도 이 파일에서 정한다. 주간 워크플로(`sync-catalog.yml`)가 차이를 이슈로 알린다. 자세한 내용은 `docs/catalog.md`.
+`catalog/projects.json`은 조직 저장소(토픽 `side-project-app`)에서 `npm run sync:catalog`로 만들 수 있다. 저장소 `homepage`는 틀릴 수 있어 `catalog/overrides.json`으로 덮어쓰고, 이름·설명·아이콘·`allowedHosts`도 이 파일에서 정한다. 매일 도는 워크플로(`sync-catalog.yml`)가 차이를 이슈로 알리고, 전용 토큰이 등록되어 있으면 갱신 PR을 자동으로 만든다. 새 프로젝트 추가·설명 갱신처럼 안전한 변경은 승인 리뷰 후 자동 병합되고 그 밖의 변경은 사람이 검토한다(`catalog/auto-merge-policy.json`의 허용 호스트). 자세한 내용은 `docs/catalog.md`.
 
 ## 프로젝트 추가 순서
 1. **서비스 URL을 실제로 확인한다.** 응답하는 HTTPS 주소만 넣는다. 레포 homepage 값은 오래됐을 수 있다. URL을 모르면 추측하지 말고 확인을 요청한다.
@@ -20,7 +20,7 @@ description: 허브 앱 카탈로그(catalog/projects.json)에 사이드 프로�
    - Google은 임베디드 WebView OAuth를 막는 정책(`disallowed_useragent`)이 있어 허용해도 거부될 수 있다. 기기에서 확인한다.
 4. 알림이 필요하면 `deployment-notifications` 스킬로 레포를 연결하고, `.github/workflows/notify-test.yml`의 `project-id` options에 같은 id를 추가한다.
 5. 검증 실패 항목은 앱이 건너뛰므로(전체 실패 시 원격본 폐기), JSON 문법과 필수 필드(`id`, `name`, `description`, `icon`, `url`)를 확인한다. `npx tsc --noEmit`, `npx expo lint`를 실행한다.
-6. master에 병합하면 목록이 바뀐다. master 쓰기 권한이 곧 앱의 노출 범위이므로 PR 리뷰를 거친다.
+6. master에 병합하면 목록이 바뀐다. master 쓰기 권한이 곧 앱의 노출 범위이므로 PR 리뷰를 거친다. 자동 PR이 만든 갱신은 자동 병합 조건(허용 호스트 안의 추가·설명 갱신)을 넘으면 사람이 같은 방식으로 검토한다. 자동 병합 허용 호스트를 늘리는 변경도 일반 PR이다.
 
 ## 제거·수정
 - 제거하면 해당 프로젝트의 알림은 탭해도 이동하지 않는다. 알림 연동과 `notify-test.yml` options도 함께 정리한다.

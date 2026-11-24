@@ -1,0 +1,341 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  buildReviewBody,
+  evaluateAutoMerge,
+  hostAllowed,
+  isHttpsServiceUrl,
+  parsePolicy,
+  probeUrl,
+  type AutoMergePolicy,
+  type Probe,
+} from './catalog-auto-merge';
+import { diffCatalog, isValidServiceUrl, type SyncEntry } from './catalog-sync';
+
+const POLICY: AutoMergePolicy = { allowedUrlHosts: ['ycseng.com', '*.ycseng.com', 'portfolio-chat-pi.vercel.app'] };
+const FILES = ['catalog/projects.json'];
+
+const entry = (over: Partial<SyncEntry> = {}): SyncEntry => ({
+  id: 'a',
+  name: 'A',
+  description: '설명 A',
+  icon: '📦',
+  url: 'https://a.ycseng.com',
+  repo: 'side-projects-labs/a',
+  ...over,
+});
+
+const OK: Probe = { status: 200 };
+
+/** 새로 생긴 항목마다 정상(200) 응답 프로브를 기본으로 붙인다. 프로브를 시험하는 테스트는 probes를 직접 넘긴다. */
+const run = (
+  base: SyncEntry[],
+  head: SyncEntry[],
+  over: { changedFiles?: string[]; policy?: AutoMergePolicy; probes?: Record<string, Probe | null> } = {},
+) => {
+  const baseIds = new Set(base.map((e) => e.id));
+  const probes = over.probes ?? Object.fromEntries(head.filter((e) => !baseIds.has(e.id)).map((e) => [e.id, OK]));
+  return evaluateAutoMerge({ base, head, changedFiles: over.changedFiles ?? FILES, policy: over.policy ?? POLICY, probes });
+};
+
+describe('hostAllowed', () => {
+  it('정확히 같은 호스트와 와일드카드 하위 도메인을 허용한다', () => {
+    expect(hostAllowed('ycseng.com', POLICY.allowedUrlHosts)).toBe(true);
+    expect(hostAllowed('admin.ycseng.com', POLICY.allowedUrlHosts)).toBe(true);
+    expect(hostAllowed('a.b.ycseng.com', POLICY.allowedUrlHosts)).toBe(true);
+    expect(hostAllowed('portfolio-chat-pi.vercel.app', POLICY.allowedUrlHosts)).toBe(true);
+  });
+
+  it('비슷한 이름의 다른 호스트와 상위 도메인은 허용하지 않는다', () => {
+    for (const host of ['evilycseng.com', 'ycseng.com.evil.com', 'xycseng.com', 'vercel.app', 'other.vercel.app', 'com']) {
+      expect(hostAllowed(host, POLICY.allowedUrlHosts)).toBe(false);
+    }
+  });
+
+  it('대소문자를 구분하지 않는다', () => {
+    expect(hostAllowed('ADMIN.YCSENG.COM', POLICY.allowedUrlHosts)).toBe(true);
+  });
+});
+
+describe('parsePolicy', () => {
+  it('올바른 정책을 정규화해 돌려준다', () => {
+    expect(parsePolicy({ allowedUrlHosts: ['YCSENG.com', '*.ycseng.com', 'ycseng.com'] })).toEqual({
+      allowedUrlHosts: ['ycseng.com', '*.ycseng.com'],
+    });
+  });
+
+  it('형식이 틀리거나 너무 넓은 패턴이 있으면 null이다', () => {
+    for (const raw of [
+      null,
+      {},
+      { allowedUrlHosts: 'x' },
+      { allowedUrlHosts: [] },
+      { allowedUrlHosts: ['*'] },
+      { allowedUrlHosts: ['*.com'] },
+      { allowedUrlHosts: ['https://ycseng.com'] },
+      { allowedUrlHosts: ['ycseng.com/path'] },
+      { allowedUrlHosts: ['ycseng.com:8080'] },
+      { allowedUrlHosts: [1] },
+    ]) {
+      expect(parsePolicy(raw)).toBeNull();
+    }
+  });
+});
+
+describe('evaluateAutoMerge', () => {
+  it('허용 호스트의 새 프로젝트 추가는 자동 병합 대상이다', () => {
+    const d = run([entry()], [entry(), entry({ id: 'b', name: 'B', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' })]);
+    expect(d.eligible).toBe(true);
+    expect(d.reasons).toEqual([]);
+    expect(d.summary).toEqual({ added: ['b'], changed: [], removed: [] });
+  });
+
+  it('이름·설명·아이콘만 바뀐 기존 항목은 자동 병합 대상이다', () => {
+    const d = run([entry()], [entry({ name: '새 이름', description: '새 설명', icon: '🚀' })]);
+    expect(d.eligible).toBe(true);
+    expect(d.summary.changed).toEqual(['a']);
+  });
+
+  it('호스트 허용 목록에 있는 정확한 vercel 주소의 새 프로젝트는 대상이다', () => {
+    const d = run([entry()], [entry(), entry({ id: 'portfolio-chat', url: 'https://portfolio-chat-pi.vercel.app/', repo: 'side-projects-labs/portfolio-chat' })]);
+    expect(d.eligible).toBe(true);
+  });
+
+  it('차이가 없으면 대상이 아니다', () => {
+    const d = run([entry()], [entry()]);
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('변경이 없');
+  });
+
+  it('catalog/projects.json 외의 파일이 바뀌었거나 변경 파일이 비어 있으면 사람이 확인한다', () => {
+    const head = [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' })];
+    expect(run([entry()], head, { changedFiles: [...FILES, 'src/app/index.tsx'] }).eligible).toBe(false);
+    expect(run([entry()], head, { changedFiles: ['catalog/overrides.json'] }).eligible).toBe(false);
+    expect(run([entry()], head, { changedFiles: [] }).eligible).toBe(false);
+  });
+
+  it('프로젝트 삭제는 사람이 확인한다', () => {
+    const d = run([entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' })], [entry()]);
+    expect(d.eligible).toBe(false);
+    expect(d.summary.removed).toEqual(['b']);
+  });
+
+  it('기존 항목의 url·repo·allowedHosts 변경은 사람이 확인한다', () => {
+    expect(run([entry()], [entry({ url: 'https://other.ycseng.com' })]).eligible).toBe(false);
+    expect(run([entry()], [entry({ repo: 'side-projects-labs/z' })]).eligible).toBe(false);
+    expect(run([entry()], [entry({ allowedHosts: ['github.com'] })]).eligible).toBe(false);
+    expect(run([entry({ allowedHosts: ['github.com'] })], [entry({ allowedHosts: ['evil.example.com'] })]).eligible).toBe(false);
+  });
+
+  it('새 항목이 허용 호스트 밖이면 사람이 확인한다', () => {
+    const d = run([entry()], [entry(), entry({ id: 'b', url: 'https://b.vercel.app', repo: 'side-projects-labs/b' })]);
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('b');
+  });
+
+  it('새 항목이 HTTPS가 아니거나 자격증명이 있거나 주소 형식이 틀리면 사람이 확인한다', () => {
+    const base = [entry()];
+    for (const url of ['http://b.ycseng.com', 'https://user:pw@b.ycseng.com', 'ftp://b.ycseng.com', 'not a url']) {
+      const d = run(base, [entry(), entry({ id: 'b', url, repo: 'side-projects-labs/b' })]);
+      expect(d.eligible).toBe(false);
+    }
+  });
+
+  it('새 항목에 allowedHosts가 있으면 사람이 확인한다', () => {
+    const d = run([entry()], [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b', allowedHosts: ['github.com'] })]);
+    expect(d.eligible).toBe(false);
+  });
+
+  it('새 항목의 repo가 같은 조직의 같은 이름이 아니면 사람이 확인한다', () => {
+    for (const repo of ['other-org/b', 'side-projects-labs/c', undefined]) {
+      const d = run([entry()], [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo })]);
+      expect(d.eligible).toBe(false);
+    }
+  });
+
+  it('id 형식이 이상하면 사람이 확인한다', () => {
+    for (const id of ['b\nc', 'b c', '', 'b/c', 'a'.repeat(101)]) {
+      const d = run([entry()], [entry(), entry({ id, url: 'https://b.ycseng.com', repo: `side-projects-labs/${id}` })]);
+      expect(d.eligible).toBe(false);
+    }
+  });
+
+  it('이름·설명만 바뀐 기존 항목이라도 id 형식이 이상하면 사람이 확인한다 (승인 리뷰 본문에 줄이 끼어들 수 없게)', () => {
+    for (const id of ['x\n- [중요] 가짜', 'x\n판정: 수정 필요', 'x y', 'x/y']) {
+      const before = entry({ id, repo: `side-projects-labs/${id}` });
+      const d = run([before], [{ ...before, description: '바뀐 설명' }]);
+      expect(d.eligible).toBe(false);
+    }
+  });
+
+  it('새 항목의 주소에 포트가 지정되어 있으면 사람이 확인한다', () => {
+    const d = run([entry()], [entry(), entry({ id: 'b', url: 'https://b.ycseng.com:8443', repo: 'side-projects-labs/b' })]);
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('포트');
+  });
+
+  it('이름·설명에 줄바꿈이나 제어 문자가 있거나 너무 길면 사람이 확인한다', () => {
+    expect(run([entry()], [entry({ description: '줄\n바꿈' })]).eligible).toBe(false);
+    expect(run([entry()], [entry({ name: '탭\t이름' })]).eligible).toBe(false);
+    expect(run([entry()], [entry({ name: 'n'.repeat(61) })]).eligible).toBe(false);
+    expect(run([entry()], [entry({ description: 'd'.repeat(201) })]).eligible).toBe(false);
+  });
+
+  it('항목이 50개를 넘으면 사람이 확인한다', () => {
+    const many = Array.from({ length: 51 }, (_, i) => entry({ id: `p${i}`, url: `https://p${i}.ycseng.com`, repo: `side-projects-labs/p${i}` }));
+    expect(run(many.slice(0, 50), many).eligible).toBe(false);
+  });
+
+  it('여러 사유가 있으면 모두 알려 준다', () => {
+    const d = run(
+      [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' })],
+      [entry({ url: 'https://other.ycseng.com' })],
+      { changedFiles: [...FILES, 'README.md'] },
+    );
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('evaluateAutoMerge - 주소 응답 확인(프로브)', () => {
+  const base = [entry()];
+  const head = [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' })];
+  const withProbe = (probe: Probe | null | undefined) =>
+    run(base, head, { probes: probe === undefined ? {} : { b: probe } });
+
+  it('정상 응답(2xx)이면 대상이다', () => {
+    expect(withProbe({ status: 200 }).eligible).toBe(true);
+    expect(withProbe({ status: 204 }).eligible).toBe(true);
+  });
+
+  it('프로브 결과가 없거나 접속하지 못했으면 사람이 확인한다', () => {
+    expect(withProbe(undefined).eligible).toBe(false);
+    const d = withProbe(null);
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('접속');
+  });
+
+  it('인증이 필요한 응답(401·403)이면 사람이 확인한다', () => {
+    for (const status of [401, 403]) {
+      const d = withProbe({ status });
+      expect(d.eligible).toBe(false);
+      expect(d.reasons.join(' ')).toContain('인증');
+    }
+  });
+
+  it('그 밖의 오류 응답(4xx·5xx)이면 사람이 확인한다', () => {
+    for (const status of [404, 410, 500, 503]) expect(withProbe({ status }).eligible).toBe(false);
+  });
+
+  it('허용 호스트 밖으로 리다이렉트하면(예: Vercel 로그인) 사람이 확인한다', () => {
+    const d = withProbe({ status: 302, location: 'https://vercel.com/sso-api?url=https%3A%2F%2Fb.ycseng.com' });
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('vercel.com');
+  });
+
+  it('허용 호스트 안으로의 리다이렉트(절대·상대 경로)는 받아들인다', () => {
+    expect(withProbe({ status: 301, location: 'https://www.ycseng.com/' }).eligible).toBe(true);
+    expect(withProbe({ status: 308, location: '/ko' }).eligible).toBe(true);
+  });
+
+  it('Location이 없거나 해석할 수 없는 리다이렉트는 사람이 확인한다', () => {
+    expect(withProbe({ status: 302 }).eligible).toBe(false);
+    expect(withProbe({ status: 302, location: 'http://[bad' }).eligible).toBe(false);
+  });
+
+  it('이름·설명만 바뀐 기존 항목에는 프로브가 필요 없다', () => {
+    expect(run([entry()], [entry({ description: '새 설명' })], { probes: {} }).eligible).toBe(true);
+  });
+
+  it('주소 검사에서 이미 막힌 새 항목은 프로브 사유를 중복해서 적지 않는다', () => {
+    const d = run(base, [entry(), entry({ id: 'b', url: 'https://b.vercel.app', repo: 'side-projects-labs/b' })], { probes: {} });
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).not.toContain('프로브');
+  });
+});
+
+describe('buildReviewBody', () => {
+  const ok = { eligible: true, reasons: [], summary: { added: ['b'], changed: ['a'], removed: [] } };
+
+  it('게이트가 읽는 마커와 승인 판정을 담고 치명·중요 지적 줄은 없다', () => {
+    const body = buildReviewBody(ok);
+    expect(body).toContain('<!-- code-review -->');
+    expect(body).toMatch(/^판정: 승인$/m);
+    expect(body).not.toMatch(/^\s*-\s*\[(치명|중요)\]/m);
+    expect(body).not.toContain('수정 필요');
+  });
+
+  it('자동 검증 리뷰이며 사람이 검토하지 않았다는 점과 추가·변경 id를 적는다', () => {
+    const body = buildReviewBody(ok);
+    expect(body).toContain('자동');
+    expect(body).toContain('사람이 검토하지 않');
+    expect(body).toContain('b');
+    expect(body).toContain('a');
+  });
+
+  it('대상이 아닌 결정으로는 승인 리뷰를 만들지 않는다', () => {
+    expect(() => buildReviewBody({ eligible: false, reasons: ['x'], summary: { added: [], changed: [], removed: [] } })).toThrow();
+  });
+});
+
+describe('catalog-sync.ts와의 동등성', () => {
+  it('서비스 URL 검증이 catalog-sync의 isValidServiceUrl과 같은 결과를 낸다', () => {
+    for (const url of [
+      'https://a.ycseng.com',
+      'https://a.ycseng.com/path?q=1',
+      'http://a.ycseng.com',
+      'https://user:pw@a.ycseng.com',
+      'https://user@a.ycseng.com',
+      'ftp://a.ycseng.com',
+      'javascript:alert(1)',
+      'not a url',
+      '',
+    ]) {
+      expect(isHttpsServiceUrl(url), url).toBe(isValidServiceUrl(url));
+    }
+  });
+
+  it('차이 계산이 catalog-sync의 diffCatalog와 같은 결과를 낸다', () => {
+    const base = [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' }), entry({ id: 'c', url: 'https://c.ycseng.com', repo: 'side-projects-labs/c' })];
+    const head = [entry({ description: '바뀜' }), entry({ id: 'c', url: 'https://c.ycseng.com', repo: 'side-projects-labs/c' }), entry({ id: 'd', url: 'https://d.ycseng.com', repo: 'side-projects-labs/d' })];
+    expect(run(base, head).summary).toEqual(diffCatalog(base, head));
+  });
+});
+
+describe('probeUrl', () => {
+  const respond = (status: number, headers: Record<string, string> = {}) =>
+    (async () => new Response(null, { status, headers })) as unknown as typeof fetch;
+
+  it('상태 코드와 Location 헤더를 돌려준다', async () => {
+    expect(await probeUrl('https://a.ycseng.com', respond(200))).toEqual({ status: 200 });
+    expect(await probeUrl('https://a.ycseng.com', respond(302, { location: 'https://vercel.com/sso-api' }))).toEqual({
+      status: 302,
+      location: 'https://vercel.com/sso-api',
+    });
+    expect(await probeUrl('https://a.ycseng.com', respond(401))).toEqual({ status: 401 });
+  });
+
+  it('리다이렉트를 따라가지 않고 GET으로 요청하며 시간 제한 신호를 붙인다', async () => {
+    let seen: RequestInit | undefined;
+    const fake = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+      seen = init;
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+    await probeUrl('https://a.ycseng.com', fake);
+    expect(seen?.redirect).toBe('manual');
+    expect(seen?.method ?? 'GET').toBe('GET');
+    expect(seen?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('접속하지 못하거나 시간이 초과되면 null이다', async () => {
+    const failing = (async () => {
+      throw new Error('ENOTFOUND');
+    }) as unknown as typeof fetch;
+    expect(await probeUrl('https://a.ycseng.com', failing)).toBeNull();
+    const hanging = ((_u: RequestInfo | URL, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      })) as unknown as typeof fetch;
+    expect(await probeUrl('https://a.ycseng.com', hanging, 20)).toBeNull();
+  });
+});
