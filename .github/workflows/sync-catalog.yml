@@ -1,11 +1,14 @@
 name: Sync catalog
 
-# 조직 저장소(토픽 side-project-app)와 catalog/projects.json의 차이를 주 1회 점검한다. 설명: docs/catalog.md
-# 차이가 있으면 이슈로 알린다. Actions가 만든 PR은 필수 체크(check)를 실행하지 못해 병합할 수 없으므로,
-# 실제 갱신은 `npm run sync:catalog`로 만들어 일반 PR 절차(리뷰와 CI)로 반영한다.
+# 조직 저장소(토픽 side-project-app)와 catalog/projects.json의 차이를 매일 1회 점검한다. 설명: docs/catalog.md
+# 차이가 있으면 이슈 "카탈로그 동기화 필요"로 알린다. 전용 토큰(시크릿 SYNC_CATALOG_TOKEN)이 등록되어 있으면 갱신 PR도 자동으로 만든다.
+# 안전한 변경(새 프로젝트 추가, 이름·설명·아이콘 갱신)은 승인 리뷰를 남기고 자동 병합을 예약하고, 그 밖의 변경(삭제, 주소·allowedHosts 변경,
+# 허용 호스트 밖의 주소)은 PR만 열어 두어 사람이 검토한다(.github/scripts/catalog-auto-pr.sh, scripts/catalog-auto-merge.mjs).
+# 기본 토큰(GITHUB_TOKEN)으로 만든 PR은 필수 체크(check)를 실행하지 못해 병합할 수 없으므로 전용 토큰을 쓴다.
+# 토큰이 없으면 이전처럼 이슈로만 알린다. 차이가 사라지면(PR이 병합되면) 알림 이슈는 다음 점검에서 닫는다.
 on:
   schedule:
-    - cron: '0 0 * * 1' # 매주 월요일 09:00 KST
+    - cron: '0 0 * * *' # 매일 09:00 KST
   workflow_dispatch:
 
 concurrency:
@@ -19,12 +22,18 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 리뷰를 남긴 뒤 check 재실행을 기다리는 시간(post-review.sh가 최대 약 17분)을 포함한다.
+    timeout-minutes: 45
     env:
       GITHUB_TOKEN: ${{ github.token }}
       GH_TOKEN: ${{ github.token }}
+      # 토큰 값이 아니라 등록 여부만 담는다(조건식에서는 시크릿을 직접 쓸 수 없다).
+      HAS_SYNC_TOKEN: ${{ secrets.SYNC_CATALOG_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 푸시와 PR 생성에 쓰이도록 전용 토큰으로 체크아웃한다. 없으면 기본 토큰(읽기 전용)이다.
+          token: ${{ secrets.SYNC_CATALOG_TOKEN || github.token }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -39,6 +48,7 @@ jobs:
           # 0: 차이 없음, 2: 차이 있음(이슈로 알림), 그 외: 오류로 실패 처리
           if [ "$code" != "0" ] && [ "$code" != "2" ]; then exit "$code"; fi
       - name: Open or update issue when drift exists
+        id: issue
         if: steps.sync.outputs.code == '2'
         run: |
           title="카탈로그 동기화 필요"
@@ -48,5 +58,29 @@ jobs:
             gh issue edit "$number" --body-file "$RUNNER_TEMP/report.md"
             echo "기존 이슈 #$number 를 갱신했습니다."
           else
-            gh issue create --title "$title" --body-file "$RUNNER_TEMP/report.md"
+            url="$(gh issue create --title "$title" --body-file "$RUNNER_TEMP/report.md")"
+            number="${url##*/}"
+            echo "이슈 #$number 를 만들었습니다."
           fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+      - name: Close resolved issue when no drift
+        if: steps.sync.outputs.code == '0'
+        run: |
+          title="카탈로그 동기화 필요"
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "[.[] | select(.title == \"$title\")][0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "조직 저장소와 카탈로그의 차이가 없어 닫습니다. (자동 점검)"
+            echo "해소된 이슈 #$number 를 닫았습니다."
+          fi
+      - name: Create PR and schedule auto-merge when drift exists
+        if: steps.sync.outputs.code == '2' && env.HAS_SYNC_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_CATALOG_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          npm run sync:catalog
+          bash .github/scripts/catalog-auto-pr.sh
+      - name: Note that PR creation is skipped without the token
+        if: steps.sync.outputs.code == '2' && env.HAS_SYNC_TOKEN != 'true'
+        run: echo "::notice::SYNC_CATALOG_TOKEN 시크릿이 없어 갱신 PR을 만들지 않았습니다. 이슈로만 알립니다(docs/catalog.md)."
