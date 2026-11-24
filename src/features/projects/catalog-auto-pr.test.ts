@@ -22,6 +22,8 @@ const project = (id: string, over: Partial<P> = {}): P => ({
 });
 const catalog = (projects: P[]) => JSON.stringify({ version: 1, projects }, null, 2) + '\n';
 const POLICY = JSON.stringify({ allowedUrlHosts: ['ycseng.com', '*.ycseng.com'] }) + '\n';
+// 새 항목의 주소 응답은 파일로 주입해 시험이 네트워크에 의존하지 않게 한다.
+const PROBES = JSON.stringify({ b: { status: 200 }, c: { status: 200 } });
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -49,6 +51,8 @@ function setup(base: P[]) {
   git(work, 'commit', '-q', '-m', 'base');
   git(work, 'push', '-q', '-u', 'origin', 'master');
 
+  const probeFile = join(root, 'probes.json');
+  writeFileSync(probeFile, PROBES);
   const log = join(root, 'calls.log');
   writeFileSync(log, '');
   // gh 스텁: 호출을 기록하고, 환경변수로 동작을 바꾼다.
@@ -63,9 +67,16 @@ for a in "$@"; do
   prev="$a"
 done
 case "$1 $2" in
-  "pr list") printf '%s' "\${STUB_PR_NUMBER:-}" ;;
+  "pr list")
+    head=""; prev=""
+    for a in "$@"; do [ "$prev" = "--head" ] && head="$a"; prev="$a"; done
+    if [ -n "\${STUB_OPEN_PR_BRANCHES:-}" ]; then
+      case ",$STUB_OPEN_PR_BRANCHES," in *",$head,"*) printf 7 ;; esac
+    else
+      printf '%s' "\${STUB_PR_NUMBER:-}"
+    fi ;;
   "pr create") echo "https://example.test/pull/7" ;;
-  "pr view") case "$*" in *autoMergeRequest*) echo "\${STUB_AUTO_MERGE:-false}" ;; *) echo 7 ;; esac ;;
+  "pr view") case "$*" in *autoMergeRequest*) echo "\${STUB_AUTO_MERGE:-false}" ;; *reviews*) echo "\${STUB_HAS_APPROVAL:-false}" ;; *) echo 7 ;; esac ;;
   "pr merge") [ -n "\${STUB_MERGE_FAIL:-}" ] && { echo "auto merge is not allowed" >&2; exit 1; } ;;
 esac
 exit 0
@@ -78,8 +89,8 @@ exit 0
 
   const edit = (projects: P[]) => writeFileSync(join(work, 'catalog/projects.json'), catalog(projects));
   const calls = () => readFileSync(log, 'utf8');
-  const run = (env: Record<string, string> = {}) => {
-    const r = spawnSync('bash', [SCRIPT], {
+  const run = (env: Record<string, string> = {}, args: string[] = []) => {
+    const r = spawnSync('bash', [SCRIPT, ...args], {
       cwd: work,
       encoding: 'utf8',
       env: {
@@ -89,6 +100,7 @@ exit 0
         GH_TOKEN: 'fake-token-value',
         STUB_LOG: log,
         CATALOG_AUTO_MERGE_CLI: CLI,
+        CATALOG_AUTO_MERGE_PROBE_FILE: probeFile,
         POST_REVIEW_SCRIPT: post,
         ...env,
       } as unknown as NodeJS.ProcessEnv,
@@ -102,8 +114,11 @@ exit 0
       return null;
     }
   };
+  const pushBranch = (name: string) => git(work, 'push', '-q', 'origin', `master:refs/heads/${name}`);
+  const remoteHeads = () =>
+    git(remote, 'for-each-ref', '--format=%(refname:short)', 'refs/heads').split('\n').filter(Boolean).sort();
   const body = () => (existsSync(`${log}.body`) ? readFileSync(`${log}.body`, 'utf8') : null);
-  return { work, remote, edit, calls, run, remoteBranch, body, review: () => (existsSync(`${log}.review`) ? readFileSync(`${log}.review`, 'utf8') : null) };
+  return { work, remote, edit, calls, run, remoteBranch, body, pushBranch, remoteHeads, review: () => (existsSync(`${log}.review`) ? readFileSync(`${log}.review`, 'utf8') : null) };
 }
 
 function chmod(path: string) {
@@ -234,4 +249,63 @@ describe('.github/scripts/catalog-auto-pr.sh', () => {
     expect(r.code).toBe(1);
     expect(t.remoteBranch()).toBeNull();
   });
+
+  it('최신 커밋에 이미 승인 리뷰가 있으면 다시 남기지 않고 자동 병합만 예약한다', () => {
+    const t = setup([project('a')]);
+    t.edit([project('a'), project('b')]);
+    expect(t.run({ STUB_MERGE_FAIL: '1' }).code).toBe(1);
+
+    git(t.work, 'checkout', '-q', 'master');
+    t.edit([project('a'), project('b')]);
+    const before = t.calls();
+    const r = t.run({ STUB_PR_NUMBER: '7', STUB_AUTO_MERGE: 'false', STUB_HAS_APPROVAL: 'true' });
+    expect(r.code).toBe(0);
+    const added = t.calls().slice(before.length);
+    expect(added).not.toContain('post-review');
+    expect(added).toMatch(/gh pr merge 7 --auto --merge/);
+  });
+
+  it('열린 PR이 없는 옛 갱신 브랜치만 지우고 열린 PR이 있거나 이름이 다른 브랜치는 건드리지 않는다', () => {
+    const t = setup([project('a')]);
+    for (const name of ['ci/5-catalog-sync', 'ci/6-catalog-sync', 'ci/57-catalog-auto-pr', 'feat/x', 'ci/7-catalog-sync-extra', 'ci/foo-catalog-sync']) t.pushBranch(name);
+    t.edit([project('a'), project('b')]);
+    const r = t.run({ STUB_OPEN_PR_BRANCHES: 'ci/6-catalog-sync' });
+    expect(r.code).toBe(0);
+    const heads = t.remoteHeads();
+    expect(heads).not.toContain('ci/5-catalog-sync');
+    expect(heads).toContain('ci/6-catalog-sync');
+    expect(heads).toContain('ci/57-catalog-auto-pr');
+    expect(heads).toContain('feat/x');
+    expect(heads).toContain('ci/7-catalog-sync-extra');
+    expect(heads).toContain('ci/foo-catalog-sync'); // 번호가 아닌 이름은 이 자동화의 브랜치가 아니다
+    expect(heads).toContain('master');
+  });
+
+  it('--cleanup-only는 ISSUE_NUMBER 없이 옛 갱신 브랜치만 정리하고 PR을 만들지 않는다', () => {
+    const t = setup([project('a')]);
+    t.pushBranch('ci/5-catalog-sync');
+    t.pushBranch('ci/6-catalog-sync');
+    const r = t.run({ ISSUE_NUMBER: '', STUB_OPEN_PR_BRANCHES: 'ci/6-catalog-sync' }, ['--cleanup-only']);
+    expect(r.code).toBe(0);
+    expect(t.remoteHeads()).toEqual(['ci/6-catalog-sync', 'master']);
+    expect(t.calls()).not.toContain('gh pr create');
+    expect(t.calls()).not.toContain('post-review');
+  });
+
+  it('정리에서 이번에 쓰는 갱신 브랜치는 지우지 않는다', () => {
+    const t = setup([project('a')]);
+    t.edit([project('a'), project('b')]);
+    expect(t.run().code).toBe(0);
+    expect(t.remoteBranch()).not.toBeNull();
+
+    git(t.work, 'checkout', '-q', 'master');
+    t.edit([project('a'), project('b')]);
+    const first = t.remoteBranch();
+    const r = t.run({ STUB_PR_NUMBER: '', STUB_OPEN_PR_BRANCHES: 'ci/99-catalog-sync' });
+    expect(r.code).toBe(0);
+    // 지웠다가 같은 실행에서 다시 푸시해도 브랜치는 남으므로, 지우지 않았다는 사실을 직접 확인한다.
+    expect(r.out).not.toContain('ci/12-catalog-sync를 지웠습니다');
+    expect(t.remoteBranch()).toBe(first);
+  });
 });
+

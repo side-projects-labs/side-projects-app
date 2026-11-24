@@ -75,6 +75,12 @@ jobs:
             gh issue close "$number" --comment "조직 저장소와 카탈로그의 차이가 없어 닫습니다. (자동 점검)"
             echo "해소된 이슈 #$number 를 닫았습니다."
           fi
+      - name: Clean up stale sync branches when no drift
+        # 병합된 갱신 브랜치는 저장소 설정상 자동으로 지워지지 않으므로, 차이가 없는 날에 열린 PR이 없는 옛 브랜치를 치운다.
+        if: steps.sync.outputs.code == '0' && env.HAS_SYNC_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_CATALOG_TOKEN }}
+        run: bash .github/scripts/catalog-auto-pr.sh --cleanup-only
       - name: Create PR and schedule auto-merge when drift exists
         if: steps.sync.outputs.code == '2' && env.HAS_SYNC_TOKEN == 'true'
         env:

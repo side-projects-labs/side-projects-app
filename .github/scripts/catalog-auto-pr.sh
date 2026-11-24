@@ -2,12 +2,16 @@
 # 동기화된 catalog/projects.json 변경을 갱신 브랜치로 올려 PR을 만들거나 갱신하고, 안전한 변경이면 자동 병합을 예약한다.
 # 워크플로(.github/workflows/sync-catalog.yml)가 `npm run sync:catalog`로 작업 트리의 카탈로그를 갱신한 뒤 호출한다.
 #
+# 사용: catalog-auto-pr.sh                 차이가 있을 때 PR 흐름을 실행한다
+#       catalog-auto-pr.sh --cleanup-only  옛 갱신 브랜치만 정리한다(ISSUE_NUMBER 불필요). 차이가 없는 날에 병합된 브랜치를 치우는 데 쓴다
+#
 # 입력(환경변수)
-#   ISSUE_NUMBER             필수. 알림 이슈 번호. 갱신 브랜치 이름(ci/<번호>-catalog-sync)과 `Refs #`에 쓴다
+#   ISSUE_NUMBER             PR 흐름에서 필수. 알림 이슈 번호. 갱신 브랜치 이름(ci/<번호>-catalog-sync)과 `Refs #`에 쓴다
 #   GH_TOKEN                 gh용 토큰. CI(check)가 실행되도록 기본 토큰이 아니라 전용 토큰을 쓴다
 #   BASE_BRANCH, GIT_REMOTE  기본 master, origin
 #   POST_REVIEW_SCRIPT       기본 .github/scripts/post-review.sh (시험에서 바꾼다)
 #   CATALOG_AUTO_MERGE_CLI   기본 scripts/catalog-auto-merge.mjs (시험에서 바꾼다)
+#   CATALOG_AUTO_MERGE_PROBE_FILE  새 항목의 주소 응답을 주입하는 JSON(시험용). 없으면 판정 CLI가 실제로 요청한다
 #
 # 흐름: 차이 없음 → 종료 / 갱신 브랜치 커밋·푸시 / PR 만들기·갱신 / 자동 병합 판정
 #   판정 통과 → 승인 리뷰(post-review.sh로 리뷰 게시 + check 재실행) → `gh pr merge --auto`
@@ -15,18 +19,43 @@
 # 같은 내용의 갱신 브랜치가 이미 있으면 다시 푸시하지 않는다(매일 새 커밋이 생겨 리뷰가 무효가 되는 것을 막는다).
 set -euo pipefail
 
-ISSUE="${ISSUE_NUMBER:-}"
-[ -n "$ISSUE" ] || { echo "ISSUE_NUMBER가 필요합니다." >&2; exit 1; }
 BASE="${BASE_BRANCH:-master}"
 REMOTE="${GIT_REMOTE:-origin}"
 POST_REVIEW="${POST_REVIEW_SCRIPT:-.github/scripts/post-review.sh}"
 CLI="${CATALOG_AUTO_MERGE_CLI:-scripts/catalog-auto-merge.mjs}"
-BRANCH="ci/${ISSUE}-catalog-sync"
 FILE="catalog/projects.json"
 TITLE="chore(catalog): 조직 저장소 목록과 카탈로그를 동기화한다"
 
+# 병합된 뒤 남는 옛 갱신 브랜치를 지운다. 이 자동화가 만든 이름(ci/<숫자>-catalog-sync)만 대상으로 하고,
+# 열린 PR이 있는 브랜치와 지금 쓰는 브랜치(첫 인자)는 건드리지 않는다. 실패해도 본 흐름을 막지 않는다.
+cleanup_stale_branches() {
+  local keep="${1:-}" name
+  while IFS= read -r name; do
+    [[ "$name" =~ ^ci/[0-9]+-catalog-sync$ ]] || continue
+    [ "$name" = "$keep" ] && continue
+    if [ -z "$(gh pr list --head "$name" --state open --json number --jq '.[0].number // empty')" ]; then
+      if git push -q "$REMOTE" --delete "$name" 2> /dev/null; then
+        echo "열린 PR이 없는 옛 갱신 브랜치 ${name}를 지웠습니다."
+      else
+        echo "::warning::옛 갱신 브랜치 ${name}를 지우지 못했습니다."
+      fi
+    fi
+  done < <(git ls-remote --heads "$REMOTE" 'ci/*-catalog-sync' 2> /dev/null | sed -E 's#^[0-9a-f]+[[:space:]]+refs/heads/##')
+}
+
+if [ "${1:-}" = "--cleanup-only" ]; then
+  cleanup_stale_branches ""
+  exit 0
+fi
+
+ISSUE="${ISSUE_NUMBER:-}"
+[ -n "$ISSUE" ] || { echo "ISSUE_NUMBER가 필요합니다." >&2; exit 1; }
+BRANCH="ci/${ISSUE}-catalog-sync"
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+
+cleanup_stale_branches "$BRANCH"
 
 if git diff --quiet -- "$FILE"; then
   echo "카탈로그에 차이가 없어 PR을 만들지 않습니다."
@@ -110,15 +139,27 @@ if [ "$SAME" = "1" ] && [ "$CREATED" = "0" ]; then
   fi
 fi
 
+PROBE_ARGS=()
+if [ -n "${CATALOG_AUTO_MERGE_PROBE_FILE:-}" ]; then PROBE_ARGS=(--probe-file "$CATALOG_AUTO_MERGE_PROBE_FILE"); fi
+
 set +e
 node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
-  "$CLI" --base-ref "$REMOTE/$BASE" --review-out "$WORK/review.md" --comment-out "$WORK/comment.md"
+  "$CLI" --base-ref "$REMOTE/$BASE" --review-out "$WORK/review.md" --comment-out "$WORK/comment.md" \
+  ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"}
 CODE=$?
 set -e
 
 case "$CODE" in
   0)
-    bash "$POST_REVIEW" "$PR" "$WORK/review.md"
+    # 최신 커밋에 이미 승인 리뷰가 있으면(병합 예약만 실패했던 경우 등) 리뷰를 쌓지 않고 예약만 다시 시도한다.
+    # jq 식의 $h는 jq 변수이므로 셸이 확장하지 않게 작은따옴표로 쓴다.
+    # shellcheck disable=SC2016
+    HAS_APPROVAL="$(gh pr view "$PR" --json headRefOid,reviews --jq '(.headRefOid) as $h | [.reviews[] | select(.commit.oid == $h) | select(.body | contains("<!-- code-review -->")) | select(.body | test("(^|\n)판정: 승인"))] | length > 0')"
+    if [ "$HAS_APPROVAL" = "true" ]; then
+      echo "최신 커밋에 이미 승인 리뷰가 있어 다시 남기지 않습니다."
+    else
+      bash "$POST_REVIEW" "$PR" "$WORK/review.md"
+    fi
     if ! gh pr merge "$PR" --auto --merge; then
       echo "::error::자동 병합 예약에 실패했습니다. 저장소 설정 allow_auto_merge가 켜져 있는지 확인하세요."
       exit 1
