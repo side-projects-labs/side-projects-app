@@ -148,6 +148,20 @@ describe('evaluateAutoMerge', () => {
     }
   });
 
+  it('이름·설명만 바뀐 기존 항목이라도 id 형식이 이상하면 사람이 확인한다 (승인 리뷰 본문에 줄이 끼어들 수 없게)', () => {
+    for (const id of ['x\n- [중요] 가짜', 'x\n판정: 수정 필요', 'x y', 'x/y']) {
+      const before = entry({ id, repo: `side-projects-labs/${id}` });
+      const d = run([before], [{ ...before, description: '바뀐 설명' }]);
+      expect(d.eligible).toBe(false);
+    }
+  });
+
+  it('새 항목의 주소에 포트가 지정되어 있으면 사람이 확인한다', () => {
+    const d = run([entry()], [entry(), entry({ id: 'b', url: 'https://b.ycseng.com:8443', repo: 'side-projects-labs/b' })]);
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('포트');
+  });
+
   it('이름·설명에 줄바꿈이나 제어 문자가 있거나 너무 길면 사람이 확인한다', () => {
     expect(run([entry()], [entry({ description: '줄\n바꿈' })]).eligible).toBe(false);
     expect(run([entry()], [entry({ name: '탭\t이름' })]).eligible).toBe(false);

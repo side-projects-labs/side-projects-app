@@ -30,9 +30,9 @@ npm run sync:catalog         # catalog/projects.json 갱신 → 일반 PR로 반
 
 | 변경 | 처리 |
 |---|---|
-| 새 프로젝트 추가(주소가 자격증명 없는 HTTPS이고 허용 호스트 안, `allowedHosts` 없음, `repo`가 `side-projects-labs/<id>`) | 승인 리뷰를 남기고 자동 병합 예약 |
+| 새 프로젝트 추가(주소가 자격증명 없는 HTTPS이고 포트 지정 없이 허용 호스트 안, `allowedHosts` 없음, `repo`가 `side-projects-labs/<id>`) | 승인 리뷰를 남기고 자동 병합 예약 |
 | 기존 항목의 이름·설명·아이콘 변경 | 자동 병합 예약 |
-| 삭제, `id`·주소·`repo`·`allowedHosts` 변경, 허용 호스트 밖의 주소, 이름·설명의 제어 문자·과도한 길이, 50개 초과, `catalog/projects.json` 외 파일 변경 | PR만 열어 두고 사유를 코멘트로 남김. 사람이 검토 |
+| 삭제, `id`·주소·`repo`·`allowedHosts` 변경, 허용 호스트 밖의 주소나 포트가 지정된 주소, 형식이 이상한 `id`, 이름·설명의 제어 문자·과도한 길이, 50개 초과, `catalog/projects.json` 외 파일 변경 | PR만 열어 두고 사유를 코멘트로 남김. 사람이 검토 |
 
 - **허용 호스트**: `catalog/auto-merge-policy.json`의 `allowedUrlHosts`다. 정확한 호스트(`a.example.com`) 또는 하위 도메인 전체(`*.example.com`, 상위 도메인은 제외)만 쓸 수 있고 `*`·`*.com`처럼 넓은 값은 정책 전체를 무효로 만든다. 정책은 PR 브랜치가 아니라 master의 것을 읽고, 정책 파일을 바꾸는 PR은 파일이 둘이라 자동 병합되지 않는다. 호스트를 늘리려면 일반 PR로 바꾼다.
 - **승인 리뷰**: 판정 스크립트가 게이트가 읽는 형식(`<!-- code-review -->`, `판정: 승인`)으로 남긴다. 사람이 쓴 리뷰가 아니고 본문에도 그렇게 적는다. 본문에는 검증을 통과한 `id`만 넣고 설명 같은 자유 텍스트는 넣지 않는다. 리뷰 게시와 `check` 재실행은 `post-review.sh`가 한다.
@@ -41,7 +41,7 @@ npm run sync:catalog         # catalog/projects.json 갱신 → 일반 PR로 반
 ### 켜는 방법 (사람이 한다)
 1. 이 저장소 전용 fine-grained 토큰을 만든다. 저장소는 이 저장소 하나, 권한은 Contents·Pull requests·Actions 쓰기(그리고 Metadata 읽기)이고 만료일을 둔다. 토큰 값은 사람이 시크릿 `SYNC_CATALOG_TOKEN`으로 등록한다(`gh secret set SYNC_CATALOG_TOKEN --repo side-projects-labs/side-projects-app`). 에이전트는 값을 읽거나 저장하지 않는다.
 2. 저장소 설정에서 자동 병합을 켠다(`allow_auto_merge`).
-3. `gh workflow run "Sync catalog"`로 첫 실행을 확인한다. 토큰이 만료되면 점검 워크플로가 실패로 보인다.
+3. `gh workflow run "Sync catalog"`로 첫 실행을 확인한다. 토큰을 쓰는 이 워크플로는 기본 브랜치(master)에서만 실행되고 다른 브랜치에서의 수동 실행은 건너뛴다. 토큰이 만료되면 점검 워크플로가 실패로 보인다.
 
 ### 위험과 한계
 - **조직 저장소에 쓰기 권한이 있는 사람이 토픽과 `homepage`를 바꾸면, 허용 호스트 안에서는 사람의 검토 없이 목록이 바뀐다.** 허용 호스트와 변경 종류 제한이 그 범위를 좁힌다. 호스트를 넓힐수록 이 위험이 커진다.

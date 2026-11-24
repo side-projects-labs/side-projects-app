@@ -128,6 +128,11 @@ export function evaluateAutoMerge(input: {
   for (const id of summary.changed) {
     const b = before.get(id) as SyncEntry;
     const a = after.get(id) as SyncEntry;
+    // 승인 리뷰 본문에 id를 그대로 적으므로, 이미 병합된 항목이라도 id 형식이 이상하면 줄이 끼어들 수 있다.
+    if (!ID.test(id)) {
+      reasons.push('기존 프로젝트의 id 형식이 올바르지 않습니다');
+      continue;
+    }
     if (b.url !== a.url) reasons.push(`프로젝트 ${id}의 주소 변경은 사람이 확인해야 합니다`);
     if (stable(b.repo) !== stable(a.repo)) reasons.push(`프로젝트 ${id}의 repo 변경은 사람이 확인해야 합니다`);
     if (stable(b.allowedHosts) !== stable(a.allowedHosts)) {
@@ -148,10 +153,12 @@ export function evaluateAutoMerge(input: {
     if (!isHttpsServiceUrl(a.url)) {
       reasons.push(`새 프로젝트 ${id}: 주소가 자격증명 없는 HTTPS가 아닙니다`);
     } else {
-      const host = new URL(a.url).hostname;
-      if (!hostAllowed(host, policy.allowedUrlHosts)) {
-        reasons.push(`새 프로젝트 ${id}: 주소 호스트(${host})가 허용 목록에 없습니다`);
+      const u = new URL(a.url);
+      if (!hostAllowed(u.hostname, policy.allowedUrlHosts)) {
+        reasons.push(`새 프로젝트 ${id}: 주소 호스트(${u.hostname})가 허용 목록에 없습니다`);
       }
+      // 같은 호스트의 다른 포트는 다른 서비스일 수 있어 기본 포트만 자동으로 받아들인다.
+      if (u.port) reasons.push(`새 프로젝트 ${id}: 주소에 포트가 지정되어 있어 사람이 확인해야 합니다`);
     }
     const problem = textProblem(a);
     if (problem) reasons.push(`새 프로젝트 ${id}: ${problem}`);
