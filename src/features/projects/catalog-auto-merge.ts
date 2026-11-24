@@ -11,6 +11,9 @@ import type { SyncEntry } from './catalog-sync';
  */
 
 export type AutoMergePolicy = { allowedUrlHosts: string[] };
+/** 새 항목의 주소를 실제로 요청한 결과. 접속하지 못했으면 null. */
+export type Probe = { status: number; location?: string } | null;
+
 export type AutoMergeDecision = {
   eligible: boolean;
   reasons: string[];
@@ -76,6 +79,34 @@ function textProblem(e: SyncEntry): string | null {
 
 const stable = (v: unknown) => JSON.stringify(v ?? null);
 
+/**
+ * 새 항목의 주소가 로그인 벽이나 다른 호스트 뒤에 있지 않고 공개되어 있는지 응답으로 확인한다.
+ * 동기화 스크립트의 응답 확인은 최종 응답이 400 미만이면 통과시키므로, 인증 화면으로 리다이렉트되는 주소도 통과한다.
+ */
+function probeProblem(url: string, probe: Probe | undefined, allowed: readonly string[]): string | null {
+  if (probe === undefined) return '주소 응답을 확인하지 못했습니다';
+  if (probe === null) return '주소에 접속하지 못했습니다';
+  const { status, location } = probe;
+  if (status === 401 || status === 403) return `인증이 필요한 주소로 보여 사람이 확인해야 합니다(HTTP ${status})`;
+  if (status >= 300 && status < 400) {
+    if (!location) return '리다이렉트 대상(Location)이 없습니다';
+    let target: URL;
+    try {
+      target = new URL(location, url);
+    } catch {
+      return '리다이렉트 대상을 해석하지 못했습니다';
+    }
+    if (target.protocol !== 'https:') return '리다이렉트 대상이 HTTPS가 아닙니다';
+    if (!hostAllowed(target.hostname, allowed)) {
+      return `허용 호스트 밖(${target.hostname})으로 리다이렉트됩니다`;
+    }
+    return null;
+  }
+  if (status >= 400) return `응답 오류(HTTP ${status})입니다`;
+  if (status < 200) return '응답 상태가 올바르지 않습니다';
+  return null;
+}
+
 /** 서비스 URL은 자격증명이 없는 HTTPS만 허용한다(catalog-sync.ts의 isValidServiceUrl과 같은 기준). */
 export function isHttpsServiceUrl(value: string): boolean {
   try {
@@ -107,8 +138,9 @@ export function evaluateAutoMerge(input: {
   head: readonly SyncEntry[];
   changedFiles: readonly string[];
   policy: AutoMergePolicy;
+  probes?: Readonly<Record<string, Probe | undefined>>;
 }): AutoMergeDecision {
-  const { base, head, changedFiles, policy } = input;
+  const { base, head, changedFiles, policy, probes } = input;
   const reasons: string[] = [];
   const summary = diffById(base, head);
 
@@ -150,15 +182,26 @@ export function evaluateAutoMerge(input: {
     }
     if (a.repo !== `${ORG}/${a.id}`) reasons.push(`새 프로젝트 ${id}: repo가 ${ORG}/${id}가 아닙니다`);
     if (a.allowedHosts !== undefined) reasons.push(`새 프로젝트 ${id}: allowedHosts는 사람이 확인해야 합니다`);
+    let addressOk = true;
     if (!isHttpsServiceUrl(a.url)) {
       reasons.push(`새 프로젝트 ${id}: 주소가 자격증명 없는 HTTPS가 아닙니다`);
+      addressOk = false;
     } else {
       const u = new URL(a.url);
       if (!hostAllowed(u.hostname, policy.allowedUrlHosts)) {
         reasons.push(`새 프로젝트 ${id}: 주소 호스트(${u.hostname})가 허용 목록에 없습니다`);
+        addressOk = false;
       }
       // 같은 호스트의 다른 포트는 다른 서비스일 수 있어 기본 포트만 자동으로 받아들인다.
-      if (u.port) reasons.push(`새 프로젝트 ${id}: 주소에 포트가 지정되어 있어 사람이 확인해야 합니다`);
+      if (u.port) {
+        reasons.push(`새 프로젝트 ${id}: 주소에 포트가 지정되어 있어 사람이 확인해야 합니다`);
+        addressOk = false;
+      }
+    }
+    // 주소 형식·호스트 검사를 통과한 새 항목만 실제 응답을 확인한다(이미 막힌 항목에 대한 사유 중복을 피한다).
+    if (addressOk) {
+      const problem = probeProblem(a.url, probes?.[id], policy.allowedUrlHosts);
+      if (problem) reasons.push(`새 프로젝트 ${id}: ${problem}`);
     }
     const problem = textProblem(a);
     if (problem) reasons.push(`새 프로젝트 ${id}: ${problem}`);
@@ -171,6 +214,28 @@ export function evaluateAutoMerge(input: {
  * 리뷰 게이트(.github/scripts/review-gate.sh)가 읽는 형식의 승인 리뷰 본문.
  * 자유 텍스트(설명 등)는 넣지 않고 검증을 통과한 id만 적어, 본문에 지적 줄이나 판정 줄이 끼어들 수 없게 한다.
  */
+/**
+ * 주소를 GET으로 한 번 요청해 상태 코드와 Location을 돌려준다. 리다이렉트는 따라가지 않아 인증 화면 같은 곳으로의 이동을 그대로 본다.
+ * 접속하지 못하거나 시간이 초과되면 null이다. 응답 본문은 읽지 않는다.
+ */
+export async function probeUrl(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 10_000,
+): Promise<Probe> {
+  try {
+    const res = await fetchImpl(url, {
+      method: 'GET',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const location = res.headers.get('location');
+    return location ? { status: res.status, location } : { status: res.status };
+  } catch {
+    return null;
+  }
+}
+
 export function buildReviewBody(decision: AutoMergeDecision): string {
   if (!decision.eligible) throw new Error('자동 병합 대상이 아닌 결정으로는 승인 리뷰를 만들 수 없습니다');
   const { added, changed } = decision.summary;
@@ -184,7 +249,7 @@ export function buildReviewBody(decision: AutoMergeDecision): string {
     `- 추가된 프로젝트: ${list(added)}`,
     `- 이름·설명·아이콘이 바뀐 프로젝트: ${list(changed)}`,
     '',
-    '검증한 조건: 변경 파일이 `catalog/projects.json` 하나, 삭제와 `id`·주소·`repo`·`allowedHosts` 변경 없음, 새 항목의 주소가 HTTPS이고 `catalog/auto-merge-policy.json`의 허용 호스트 안에 있음, 새 항목의 `repo`가 같은 조직의 같은 이름, 이름·설명·아이콘에 제어 문자와 과도한 길이 없음.',
+    '검증한 조건: 변경 파일이 `catalog/projects.json` 하나, 삭제와 `id`·주소·`repo`·`allowedHosts` 변경 없음, 새 항목의 주소가 HTTPS이고 `catalog/auto-merge-policy.json`의 허용 호스트 안에 있으며 실제 요청에 정상 응답(인증 화면이나 허용 호스트 밖으로의 리다이렉트가 아님), 새 항목의 `repo`가 같은 조직의 같은 이름, 이름·설명·아이콘에 제어 문자와 과도한 길이 없음.',
     '',
     '판정: 승인',
     '',

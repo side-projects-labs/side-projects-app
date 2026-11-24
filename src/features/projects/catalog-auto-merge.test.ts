@@ -6,7 +6,9 @@ import {
   hostAllowed,
   isHttpsServiceUrl,
   parsePolicy,
+  probeUrl,
   type AutoMergePolicy,
+  type Probe,
 } from './catalog-auto-merge';
 import { diffCatalog, isValidServiceUrl, type SyncEntry } from './catalog-sync';
 
@@ -23,8 +25,18 @@ const entry = (over: Partial<SyncEntry> = {}): SyncEntry => ({
   ...over,
 });
 
-const run = (base: SyncEntry[], head: SyncEntry[], over: { changedFiles?: string[]; policy?: AutoMergePolicy } = {}) =>
-  evaluateAutoMerge({ base, head, changedFiles: over.changedFiles ?? FILES, policy: over.policy ?? POLICY });
+const OK: Probe = { status: 200 };
+
+/** 새로 생긴 항목마다 정상(200) 응답 프로브를 기본으로 붙인다. 프로브를 시험하는 테스트는 probes를 직접 넘긴다. */
+const run = (
+  base: SyncEntry[],
+  head: SyncEntry[],
+  over: { changedFiles?: string[]; policy?: AutoMergePolicy; probes?: Record<string, Probe | null> } = {},
+) => {
+  const baseIds = new Set(base.map((e) => e.id));
+  const probes = over.probes ?? Object.fromEntries(head.filter((e) => !baseIds.has(e.id)).map((e) => [e.id, OK]));
+  return evaluateAutoMerge({ base, head, changedFiles: over.changedFiles ?? FILES, policy: over.policy ?? POLICY, probes });
+};
 
 describe('hostAllowed', () => {
   it('정확히 같은 호스트와 와일드카드 하위 도메인을 허용한다', () => {
@@ -185,6 +197,63 @@ describe('evaluateAutoMerge', () => {
   });
 });
 
+describe('evaluateAutoMerge - 주소 응답 확인(프로브)', () => {
+  const base = [entry()];
+  const head = [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' })];
+  const withProbe = (probe: Probe | null | undefined) =>
+    run(base, head, { probes: probe === undefined ? {} : { b: probe } });
+
+  it('정상 응답(2xx)이면 대상이다', () => {
+    expect(withProbe({ status: 200 }).eligible).toBe(true);
+    expect(withProbe({ status: 204 }).eligible).toBe(true);
+  });
+
+  it('프로브 결과가 없거나 접속하지 못했으면 사람이 확인한다', () => {
+    expect(withProbe(undefined).eligible).toBe(false);
+    const d = withProbe(null);
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('접속');
+  });
+
+  it('인증이 필요한 응답(401·403)이면 사람이 확인한다', () => {
+    for (const status of [401, 403]) {
+      const d = withProbe({ status });
+      expect(d.eligible).toBe(false);
+      expect(d.reasons.join(' ')).toContain('인증');
+    }
+  });
+
+  it('그 밖의 오류 응답(4xx·5xx)이면 사람이 확인한다', () => {
+    for (const status of [404, 410, 500, 503]) expect(withProbe({ status }).eligible).toBe(false);
+  });
+
+  it('허용 호스트 밖으로 리다이렉트하면(예: Vercel 로그인) 사람이 확인한다', () => {
+    const d = withProbe({ status: 302, location: 'https://vercel.com/sso-api?url=https%3A%2F%2Fb.ycseng.com' });
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).toContain('vercel.com');
+  });
+
+  it('허용 호스트 안으로의 리다이렉트(절대·상대 경로)는 받아들인다', () => {
+    expect(withProbe({ status: 301, location: 'https://www.ycseng.com/' }).eligible).toBe(true);
+    expect(withProbe({ status: 308, location: '/ko' }).eligible).toBe(true);
+  });
+
+  it('Location이 없거나 해석할 수 없는 리다이렉트는 사람이 확인한다', () => {
+    expect(withProbe({ status: 302 }).eligible).toBe(false);
+    expect(withProbe({ status: 302, location: 'http://[bad' }).eligible).toBe(false);
+  });
+
+  it('이름·설명만 바뀐 기존 항목에는 프로브가 필요 없다', () => {
+    expect(run([entry()], [entry({ description: '새 설명' })], { probes: {} }).eligible).toBe(true);
+  });
+
+  it('주소 검사에서 이미 막힌 새 항목은 프로브 사유를 중복해서 적지 않는다', () => {
+    const d = run(base, [entry(), entry({ id: 'b', url: 'https://b.vercel.app', repo: 'side-projects-labs/b' })], { probes: {} });
+    expect(d.eligible).toBe(false);
+    expect(d.reasons.join(' ')).not.toContain('프로브');
+  });
+});
+
 describe('buildReviewBody', () => {
   const ok = { eligible: true, reasons: [], summary: { added: ['b'], changed: ['a'], removed: [] } };
 
@@ -230,5 +299,43 @@ describe('catalog-sync.ts와의 동등성', () => {
     const base = [entry(), entry({ id: 'b', url: 'https://b.ycseng.com', repo: 'side-projects-labs/b' }), entry({ id: 'c', url: 'https://c.ycseng.com', repo: 'side-projects-labs/c' })];
     const head = [entry({ description: '바뀜' }), entry({ id: 'c', url: 'https://c.ycseng.com', repo: 'side-projects-labs/c' }), entry({ id: 'd', url: 'https://d.ycseng.com', repo: 'side-projects-labs/d' })];
     expect(run(base, head).summary).toEqual(diffCatalog(base, head));
+  });
+});
+
+describe('probeUrl', () => {
+  const respond = (status: number, headers: Record<string, string> = {}) =>
+    (async () => new Response(null, { status, headers })) as unknown as typeof fetch;
+
+  it('상태 코드와 Location 헤더를 돌려준다', async () => {
+    expect(await probeUrl('https://a.ycseng.com', respond(200))).toEqual({ status: 200 });
+    expect(await probeUrl('https://a.ycseng.com', respond(302, { location: 'https://vercel.com/sso-api' }))).toEqual({
+      status: 302,
+      location: 'https://vercel.com/sso-api',
+    });
+    expect(await probeUrl('https://a.ycseng.com', respond(401))).toEqual({ status: 401 });
+  });
+
+  it('리다이렉트를 따라가지 않고 GET으로 요청하며 시간 제한 신호를 붙인다', async () => {
+    let seen: RequestInit | undefined;
+    const fake = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+      seen = init;
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+    await probeUrl('https://a.ycseng.com', fake);
+    expect(seen?.redirect).toBe('manual');
+    expect(seen?.method ?? 'GET').toBe('GET');
+    expect(seen?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('접속하지 못하거나 시간이 초과되면 null이다', async () => {
+    const failing = (async () => {
+      throw new Error('ENOTFOUND');
+    }) as unknown as typeof fetch;
+    expect(await probeUrl('https://a.ycseng.com', failing)).toBeNull();
+    const hanging = ((_u: RequestInfo | URL, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      })) as unknown as typeof fetch;
+    expect(await probeUrl('https://a.ycseng.com', hanging, 20)).toBeNull();
   });
 });

@@ -47,13 +47,19 @@ function setup(opts: { base: P[]; head: P[]; policy?: string | null; extraFile?:
   return dir;
 }
 
-function run(dir: string) {
+type ProbeMap = Record<string, { status: number; location?: string } | null>;
+
+/** 새 항목의 주소 응답은 파일로 주입해 시험이 네트워크에 의존하지 않게 한다(기본: 새 항목 b가 200). */
+function run(dir: string, probes: ProbeMap = { b: { status: 200 } }) {
   const review = join(dir, '.review.md');
   const comment = join(dir, '.comment.md');
-  const r = spawnSync(process.execPath, [...NODE_FLAGS, CLI, '--base-ref', 'master', '--review-out', review, '--comment-out', comment], {
-    cwd: dir,
-    encoding: 'utf8',
-  });
+  const probeFile = join(dir, '.probes.json');
+  writeFileSync(probeFile, JSON.stringify(probes));
+  const r = spawnSync(
+    process.execPath,
+    [...NODE_FLAGS, CLI, '--base-ref', 'master', '--review-out', review, '--comment-out', comment, '--probe-file', probeFile],
+    { cwd: dir, encoding: 'utf8' },
+  );
   return {
     code: r.status,
     stdout: r.stdout,
@@ -72,6 +78,26 @@ describe('scripts/catalog-auto-merge.mjs', () => {
     expect(r.review).toContain('b');
     expect(r.comment).toBeNull();
     expect(JSON.parse(r.stdout)).toMatchObject({ eligible: true, summary: { added: ['b'] } });
+  });
+
+  it('새 항목의 주소가 Vercel 같은 로그인 화면으로 리다이렉트되면 3으로 끝나고 사유를 알린다', () => {
+    const dir = setup({ base: [project('a')], head: [project('a'), project('b')] });
+    const r = run(dir, { b: { status: 302, location: 'https://vercel.com/sso-api?url=x' } });
+    expect(r.code).toBe(3);
+    expect(r.review).toBeNull();
+    expect(r.comment).toContain('vercel.com');
+  });
+
+  it('인증이 필요한 응답이거나 접속하지 못했거나 프로브 결과가 없으면 3이다', () => {
+    const dir = setup({ base: [project('a')], head: [project('a'), project('b')] });
+    expect(run(dir, { b: { status: 401 } }).code).toBe(3);
+    expect(run(dir, { b: null }).code).toBe(3);
+    expect(run(dir, {}).code).toBe(3);
+  });
+
+  it('이름·설명만 바뀐 경우에는 프로브 결과가 없어도 자동 병합 대상이다', () => {
+    const dir = setup({ base: [project('a')], head: [project('a', { description: '바뀐 설명' })] });
+    expect(run(dir, {}).code).toBe(0);
   });
 
   it('삭제가 있으면 3으로 끝나고 승인 리뷰 없이 사유 코멘트를 만든다', () => {
