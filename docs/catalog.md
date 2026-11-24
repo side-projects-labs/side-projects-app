@@ -21,9 +21,33 @@ npm run sync:catalog:check   # 차이만 확인(차이가 있으면 종료 코�
 npm run sync:catalog         # catalog/projects.json 갱신 → 일반 PR로 반영
 ```
 
-- **주간 점검**: `.github/workflows/sync-catalog.yml`이 매주 월요일 09시(KST)에 차이를 점검하고, 차이가 있으면 이슈 "카탈로그 동기화 필요"를 만들거나 갱신한다. 수동 실행도 된다.
-- **자동 PR을 만들지 않는 이유**: Actions가 만든 PR은 필수 체크(`check`)를 실행하지 못해 병합할 수 없다(그리고 이 저장소는 Actions의 PR 생성 설정이 꺼져 있다). 그래서 갱신은 로컬에서 명령으로 만들어 리뷰와 CI를 거친다.
+- **일간 점검**: `.github/workflows/sync-catalog.yml`이 매일 09시(KST)에 차이를 점검하고, 차이가 있으면 이슈 "카탈로그 동기화 필요"를 만들거나 갱신한다. 차이가 사라지면 다음 점검에서 그 이슈를 닫는다. 수동 실행도 된다(`gh workflow run "Sync catalog"`). 전용 토큰이 등록되어 있으면 갱신 PR도 자동으로 만든다([자동 PR과 자동 병합](#자동-pr과-자동-병합)).
+- **기본 토큰으로 PR을 만들지 않는 이유**: 기본 토큰(`GITHUB_TOKEN`)으로 만든 PR은 필수 체크(`check`)를 실행하지 못해 병합할 수 없다(그리고 이 저장소는 Actions의 PR 생성 설정이 꺼져 있다). 그래서 자동 PR은 이 저장소 전용 토큰으로 만든다. 토큰이 없으면 PR 없이 이슈로만 알리며, 그때는 로컬에서 명령으로 만들어 일반 PR로 반영한다.
 - **새 프로젝트 추가**: 저장소에 `homepage`와 토픽을 설정하고 필요하면 `catalog/overrides.json`에 항목을 추가한 뒤 `npm run sync:catalog`를 실행한다.
+
+## 자동 PR과 자동 병합
+`sync-catalog.yml`은 차이가 있으면 `npm run sync:catalog`로 갱신본을 만들고 `.github/scripts/catalog-auto-pr.sh`가 갱신 브랜치(`ci/<알림 이슈 번호>-catalog-sync`)에 올려 PR을 만들거나 갱신한다. 같은 내용의 브랜치가 이미 있으면 다시 푸시하지 않는다(매일 새 커밋이 생겨 리뷰가 무효가 되는 것을 막는다). 이어서 `scripts/catalog-auto-merge.mjs`가 병합해도 안전한지 판정한다.
+
+| 변경 | 처리 |
+|---|---|
+| 새 프로젝트 추가(주소가 자격증명 없는 HTTPS이고 허용 호스트 안, `allowedHosts` 없음, `repo`가 `side-projects-labs/<id>`) | 승인 리뷰를 남기고 자동 병합 예약 |
+| 기존 항목의 이름·설명·아이콘 변경 | 자동 병합 예약 |
+| 삭제, `id`·주소·`repo`·`allowedHosts` 변경, 허용 호스트 밖의 주소, 이름·설명의 제어 문자·과도한 길이, 50개 초과, `catalog/projects.json` 외 파일 변경 | PR만 열어 두고 사유를 코멘트로 남김. 사람이 검토 |
+
+- **허용 호스트**: `catalog/auto-merge-policy.json`의 `allowedUrlHosts`다. 정확한 호스트(`a.example.com`) 또는 하위 도메인 전체(`*.example.com`, 상위 도메인은 제외)만 쓸 수 있고 `*`·`*.com`처럼 넓은 값은 정책 전체를 무효로 만든다. 정책은 PR 브랜치가 아니라 master의 것을 읽고, 정책 파일을 바꾸는 PR은 파일이 둘이라 자동 병합되지 않는다. 호스트를 늘리려면 일반 PR로 바꾼다.
+- **승인 리뷰**: 판정 스크립트가 게이트가 읽는 형식(`<!-- code-review -->`, `판정: 승인`)으로 남긴다. 사람이 쓴 리뷰가 아니고 본문에도 그렇게 적는다. 본문에는 검증을 통과한 `id`만 넣고 설명 같은 자유 텍스트는 넣지 않는다. 리뷰 게시와 `check` 재실행은 `post-review.sh`가 한다.
+- **자동 병합 예약**: `gh pr merge --auto --merge`. 저장소 설정 `allow_auto_merge`가 꺼져 있으면 실패해 워크플로가 오류로 끝난다. 필수 체크 `check`(리뷰 게이트 포함)가 통과해야 병합된다.
+
+### 켜는 방법 (사람이 한다)
+1. 이 저장소 전용 fine-grained 토큰을 만든다. 저장소는 이 저장소 하나, 권한은 Contents·Pull requests·Actions 쓰기(그리고 Metadata 읽기)이고 만료일을 둔다. 토큰 값은 사람이 시크릿 `SYNC_CATALOG_TOKEN`으로 등록한다(`gh secret set SYNC_CATALOG_TOKEN --repo side-projects-labs/side-projects-app`). 에이전트는 값을 읽거나 저장하지 않는다.
+2. 저장소 설정에서 자동 병합을 켠다(`allow_auto_merge`).
+3. `gh workflow run "Sync catalog"`로 첫 실행을 확인한다. 토큰이 만료되면 점검 워크플로가 실패로 보인다.
+
+### 위험과 한계
+- **조직 저장소에 쓰기 권한이 있는 사람이 토픽과 `homepage`를 바꾸면, 허용 호스트 안에서는 사람의 검토 없이 목록이 바뀐다.** 허용 호스트와 변경 종류 제한이 그 범위를 좁힌다. 호스트를 넓힐수록 이 위험이 커진다.
+- 토큰은 만든 사람의 계정에 묶인다. 만료·폐기되면 자동 PR이 멈춘다(토큰이 아예 없을 때는 이슈로만 알린다).
+- 자동 승인 리뷰는 리뷰 게이트의 신뢰 모델(`docs/review-gate.md`)을 기계 판정으로 대신한다.
+- 판정은 주소가 응답하는지(WebView에서 쓸 수 있는지)까지 보장하지 않는다. 동기화 스크립트가 응답 여부를 확인하지만, 로그인 벽 뒤에 있는 서비스는 응답이 정상으로 보인다.
 
 ## 목록 화면 부가 기능
 - **상태 표시**: 각 카드의 이름 옆 칩으로 보여 준다. 앱이 서비스 `url`에 GET 요청(5초 제한)을 보내 5xx가 아니면 '정상', 오류·시간 초과·5xx면 '응답 없음'(확인 전에는 '확인 중')이다. 401·리다이렉트도 정상으로 본다. 목록을 당기면 다시 확인한다.
@@ -49,5 +73,5 @@ npm run sync:catalog         # catalog/projects.json 갱신 → 일반 PR로 반
 - Google은 임베디드 WebView에서의 OAuth를 막는 정책이 있어(`403 disallowed_useragent`) 허용해도 로그인이 거부될 수 있다.
 
 ## 보안 메모
-- 이 파일이 WebView로 열 주소를 결정하므로 master의 쓰기 권한이 곧 앱의 노출 범위다. 브랜치 보호와 PR 리뷰로 관리한다.
+- 이 파일이 WebView로 열 주소를 결정하므로 master의 쓰기 권한이 곧 앱의 노출 범위다. 브랜치 보호와 PR 리뷰로 관리한다. 자동 병합은 허용 호스트 안의 추가·설명 갱신으로 제한하며(위 "자동 PR과 자동 병합"), 그 밖의 변경은 사람이 검토한다.
 - 다른 주소로 바꾸려면 빌드 시 `EXPO_PUBLIC_CATALOG_URL`을 지정한다. 앱에 포함되는 공개 값이므로 비밀 값을 넣지 않는다.
