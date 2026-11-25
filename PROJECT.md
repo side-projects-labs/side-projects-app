@@ -9,10 +9,7 @@
     "TypeScript",
     "React Native",
     "Expo",
-    "Expo Router",
-    "React Native WebView",
     "Vitest",
-    "EAS",
     "GitHub Actions"
   ],
   "linkDemo": null,
