@@ -4,7 +4,7 @@
   "slug": "side-projects-app",
   "title": "사이드 프로젝트를 한 앱에서 열고 배포 알림까지 받는 허브 앱",
   "description": "흩어진 사이드 프로젝트를 한 앱의 목록으로 모으고 WebView로 실제 서비스를 이용하게 한 React Native + Expo 앱입니다. 앱을 다시 빌드하지 않고 바뀌는 원격 카탈로그, 허용 목록 기반 URL 정책, 배포 푸시 알림과 이력, 생체 인증 앱 잠금, OTA 업데이트를 갖췄습니다.",
-  "image": "https://raw.githubusercontent.com/side-projects-labs/side-projects-app/b8015ee67c942fd045828bbd011d7b1ebfd92e7c/PROJECT.png",
+  "image": "https://raw.githubusercontent.com/side-projects-labs/side-projects-app/687689f6835902e7d083f99142d72b5f56df45c3/PROJECT.png",
   "stacks": [
     "TypeScript",
     "React Native",
@@ -39,14 +39,14 @@
 목록 화면에는 다음 기능이 있습니다.
 
 - 각 카드의 상태 칩: 서비스 주소에 GET 요청(5초 제한)을 보내 5xx가 아니면 '정상', 오류·시간 초과·5xx면 '응답 없음'으로 표시합니다.
-- 고정(즐겨찾기)과 순서 변경: 고정한 프로젝트를 위쪽에 두고 ▲▼로 순서를 바꿉니다. 기기에만 저장합니다.
+- 고정(즐겨찾기)과 순서 변경: 고정한 프로젝트를 위쪽에 두고 ▲▼로 ![프로젝트 카드마다 이름, 설명, 상태 칩과 고정 별표가 있는 목록 화면](https://raw.githubusercontent.com/side-projects-labs/side-projects-app/687689f6835902e7d083f99142d72b5f56df45c3/docs/project/app-home.png)순서를 바꿉니다. 기기에만 저장합니다.
 - 이어서 보기: 마지막으로 본 페이지를 저장해 두고 상단 바로 가기로 그 페이지에서 다시 엽니다.
 
-![프로젝트 카드마다 이름, 설명, 상태 칩과 고정 별표가 있는 목록 화면](https://raw.githubusercontent.com/side-projects-labs/side-projects-app/b8015ee67c942fd045828bbd011d7b1ebfd92e7c/docs/project/app-home.png)
+
 
 *2026년 11월 25일 기준 앱의 목록 화면을 Expo 웹 빌드로 띄워 390px 폭(모바일 에뮬레이션)에서 찍은 것입니다. 실기기 화면이 아닙니다. 각 카드의 '정상' 칩은 실제 서비스 주소에 요청한 결과입니다.*
 
-![다크 모드로 본 같은 목록 화면](https://raw.githubusercontent.com/side-projects-labs/side-projects-app/b8015ee67c942fd045828bbd011d7b1ebfd92e7c/docs/project/app-home-dark.png)
+![다크 모드로 본 같은 목록 화면](https://raw.githubusercontent.com/side-projects-labs/side-projects-app/687689f6835902e7d083f99142d72b5f56df45c3/docs/project/app-home-dark.png)
 
 *같은 화면의 다크 모드입니다. 시스템 설정을 따라 자동으로 바뀝니다.*
 
@@ -79,7 +79,7 @@ WebView가 요청하는 URL, 푸시 알림의 `data`, 원격 카탈로그는 모
 
 배포 이력 화면에는 이 기기가 받은 알림을 최근 50건까지 모아 상태와 프로젝트로 걸러 볼 수 있습니다. 앱이 꺼진 동안 도착해 알림 센터에서 지워진 알림은 남지 않기 때문에, 앱이 열릴 때 GitHub Deployments의 공개 기록을 읽어 이력을 보충합니다. 같은 `eventId`는 한 건으로 합치고, 비인증 요청의 시간당 60회 제한에 막히면 그 시점까지의 결과만 반영한 뒤 다음 간격에 다시 시도합니다. 사용자가 지운 항목의 id는 기억해 두어 다시 살아나지 않게 했습니다.
 
-![배포 완료 항목이 시간순으로 나열되고 상태와 프로젝트 필터가 있는 배포 이력 화면](https://raw.githubusercontent.com/side-projects-labs/side-projects-app/b8015ee67c942fd045828bbd011d7b1ebfd92e7c/docs/project/app-history.png)
+![배포 완료 항목이 시간순으로 나열되고 상태와 프로젝트 필터가 있는 배포 이력 화면](https://raw.githubusercontent.com/side-projects-labs/side-projects-app/687689f6835902e7d083f99142d72b5f56df45c3/docs/project/app-history.png)
 
 *같은 방식으로 찍은 배포 이력 화면입니다. 웹에서는 푸시 알림을 받을 수 없어서 GitHub Deployments의 공개 기록으로 보충된 항목만 보입니다. 실기기에서 알림으로 쌓인 이력과는 다를 수 있습니다.*
 
